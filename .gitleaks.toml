@@ -1,0 +1,11 @@
+title = "automations"
+
+[allowlist]
+description = "Allow obvious placeholder values used in docs and examples"
+paths = [
+  '''^\.env\.example$''',
+]
+regexes = [
+  '''postgresql://user:password@host/database''',
+]
+

@@ -1,0 +1,13 @@
+.DS_Store
+.agents/
+.env
+.env.local
+.pytest_cache/
+.tmp/
+.venv/
+skills-lock.json
+__pycache__/
+artifacts/
+*.pyc
+*.pyo
+*.sqlite3
