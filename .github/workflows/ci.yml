@@ -24,6 +24,14 @@ jobs:
       - name: Run unit tests
         run: python -m unittest
 
+      - name: Export contract bundle fixture
+        run: |
+          python scripts/export_run_bundle.py \
+            --automation-name linkedin-company-profile-engagement \
+            --report-path tests/fixtures/company_profile_report.json \
+            --output /tmp/phantomclaw-contract-bundle.json
+          test -s /tmp/phantomclaw-contract-bundle.json
+
   gitleaks:
     runs-on: ubuntu-latest
     steps:
@@ -36,4 +44,3 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITLEAKS_CONFIG: .gitleaks.toml
-

@@ -1,0 +1,14 @@
+{
+  "run_id": "fixture-company-profile-run",
+  "started_at": "2026-03-28T12:00:00+00:00",
+  "finished_at": "2026-03-28T12:01:00+00:00",
+  "status": "ok",
+  "actor_verified": true,
+  "search_shape_ok": true,
+  "posts_scanned": 7,
+  "posts_liked": 3,
+  "posts_reposted": 1,
+  "comments_liked": 2,
+  "agencies_scanned": 3,
+  "agencies_followed": 1
+}

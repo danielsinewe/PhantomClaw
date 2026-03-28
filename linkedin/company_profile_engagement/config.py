@@ -75,7 +75,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dry-run", action="store_true", default=os.getenv(f"{ENV_PREFIX}_DRY_RUN") == "1")
     parser.add_argument("--fixture", type=Path)
     parser.add_argument("--database-url", default=os.getenv(f"{ENV_PREFIX}_DATABASE_URL"))
-    parser.add_argument("--analytics-database-url", default=os.getenv("AUTOMATION_ANALYTICS_DATABASE_URL"))
+    parser.add_argument(
+        "--analytics-database-url",
+        default=os.getenv(f"{ENV_PREFIX}_ANALYTICS_DATABASE_URL") or os.getenv("AUTOMATION_ANALYTICS_DATABASE_URL"),
+    )
     parser.add_argument("--db-path", type=Path, default=DEFAULT_DB_PATH)
     parser.add_argument("--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR)
     parser.add_argument("--success-screenshot", action="store_true")
@@ -114,7 +117,7 @@ def parse_config(argv: list[str] | None = None) -> RunnerConfig:
         dry_run=args.dry_run,
         fixture_path=args.fixture,
         database_url=args.database_url,
-        analytics_database_url=args.analytics_database_url or args.database_url,
+        analytics_database_url=args.analytics_database_url,
         db_path=db_path,
         artifact_dir=args.artifact_dir,
         success_screenshot=args.success_screenshot,

@@ -28,9 +28,10 @@ This repository is the public automation engine, not the full hosted product sur
 ## Quick Start
 
 1. Create a virtual environment and install dependencies.
-2. Copy [`.env.example`](./.env.example) to `.env` and fill in your own profile names, URLs, and database credentials.
-3. Run the test suite.
-4. Dry-run a runner with fixtures before using a live browser session.
+2. Copy [`.env.example`](./.env.example) to `.env` and fill in your own profile names and URLs.
+3. Only add database credentials if you are intentionally self-hosting PhantomClaw state or analytics.
+4. Run the test suite.
+5. Dry-run a runner with fixtures before using a live browser session.
 
 ```bash
 .venv/bin/python -m unittest
@@ -61,12 +62,17 @@ The repository includes:
 
 Shared:
 
+- none required
+
+Self-hosted only:
+
 - `AUTOMATION_ANALYTICS_DATABASE_URL`
 
 LinkedIn Company Profile Engagement:
 
 - required: `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_SEARCH_URL`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_PROFILE`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_ACTOR`
-- optional: `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_SESSION`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_POST_CAP`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_REPOST_CAP`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_COMMENT_CAP`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_MAX_PASSES`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_FOLLOW_CAP`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_DATABASE_URL`
+- optional: `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_SESSION`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_POST_CAP`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_REPOST_CAP`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_COMMENT_CAP`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_MAX_PASSES`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_FOLLOW_CAP`
+- self-hosted only: `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_DATABASE_URL`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_ANALYTICS_DATABASE_URL`
 
 LinkedIn Sales Community Engagement:
 
@@ -89,7 +95,9 @@ LinkedIn Sales Community Engagement writes:
 
 ## Normalized Analytics
 
-For cross-automation dashboards, runners can write normalized facts into a shared Postgres sink via `AUTOMATION_ANALYTICS_DATABASE_URL`.
+For self-hosted cross-automation dashboards, runners can write normalized facts into a shared Postgres sink via `AUTOMATION_ANALYTICS_DATABASE_URL` or an automation-specific `*_ANALYTICS_DATABASE_URL`.
+
+This is not the PhantomClaw Cloud path. Managed PhantomClaw storage is expected to happen through authenticated `phantomclaw-cli` bundle sync, not by giving the public runner direct access to the hosted database.
 
 The shared objects are:
 
@@ -116,6 +124,16 @@ That bundle is the contract between:
 - open-source PhantomClaw core
 - private authenticated CLI
 - private PhantomClaw control plane and dashboard
+
+For a new PhantomClaw Cloud user, the intended flow is:
+
+1. run the automation locally
+2. keep runtime state in local artifacts or your own self-hosted database
+3. export a run bundle
+4. authenticate with `phantomclaw-cli`
+5. sync the bundle to PhantomClaw Cloud
+
+The public CI also exports a bundle from a fixture report on every push so the contract stays live, not just documented.
 
 ## Repository Structure
 
