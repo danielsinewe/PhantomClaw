@@ -45,6 +45,18 @@ def _first(items: list[str]) -> str | None:
     return items[0] if items else None
 
 
+def _sanitize_actor_name(value: str | None) -> str | None:
+    if not value:
+        return None
+    cleaned = _clean_text(value)
+    lower = cleaned.lower()
+    if len(cleaned) > 120:
+        return None
+    if any(marker in lower for marker in ("identityswitcheractorcontext", "proto.sdui", "commentboxtext-", "commentssectionanchor-")):
+        return None
+    return cleaned
+
+
 def parse_feed_html(html: str, actor_name: str) -> FeedSnapshot:
     lower = html.lower()
     challenge_signals = [pattern for pattern in CHALLENGE_PATTERNS if pattern in lower]
@@ -53,13 +65,12 @@ def parse_feed_html(html: str, actor_name: str) -> FeedSnapshot:
         rf'acting as\s*{re.escape(actor_name.lower())}',
         rf'commenting as\s*{re.escape(actor_name.lower())}',
         rf'current actor[^<]*{re.escape(actor_name.lower())}',
-        rf'identity[^<]*{re.escape(actor_name.lower())}',
     ]
     actor_verified = any(re.search(pattern, lower) for pattern in actor_patterns)
     actor_candidates = re.findall(r'data-actor-name="([^"]+)"', html, flags=re.IGNORECASE)
     if not actor_candidates:
         actor_candidates = re.findall(r'acting as\s*([^<]+)', html, flags=re.IGNORECASE)
-    actor_candidate = _first([_clean_text(item) for item in actor_candidates]) or actor_name if actor_verified else None
+    actor_candidate = _first([candidate for item in actor_candidates if (candidate := _sanitize_actor_name(item))]) or actor_name if actor_verified else None
     posts = _extract_posts(html)
     return FeedSnapshot(
         actor_name=actor_candidate,
@@ -152,6 +163,7 @@ def parse_browser_payload(payload: str, actor_name: str, html: str | None = None
     data = json.loads(payload)
     if "html" in data:
         return parse_feed_html(data["html"], actor_name)
+    fallback_snapshot = parse_feed_html(html, actor_name) if html else None
     ordered_ids = extract_activity_ids_from_html(html or "")
     posts = []
     for index, raw_post in enumerate(data.get("posts", [])):
@@ -186,10 +198,13 @@ def parse_browser_payload(payload: str, actor_name: str, html: str | None = None
                 comments=comments,
             )
         )
-    payload_actor_name = data.get("actor_name")
-    actor_verified = bool(data.get("actor_verified", False))
+    payload_actor_name = _sanitize_actor_name(data.get("actor_name"))
+    actor_verified = bool(data.get("actor_verified", False)) and bool(payload_actor_name)
     if payload_actor_name and actor_name:
         actor_verified = payload_actor_name.strip().lower() == actor_name.strip().lower()
+    elif fallback_snapshot is not None:
+        payload_actor_name = fallback_snapshot.actor_name
+        actor_verified = fallback_snapshot.actor_verified
     return FeedSnapshot(
         actor_name=payload_actor_name,
         actor_verified=actor_verified,

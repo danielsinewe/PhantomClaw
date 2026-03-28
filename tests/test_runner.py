@@ -363,7 +363,7 @@ class RunnerTests(unittest.TestCase):
                 posts=[
                     PostSnapshot(
                         post_id="p1",
-                        post_url="https://www.linkedin.com/feed/update/p1",
+                        post_url=None,
                         text="Post p1",
                         sponsored=False,
                         already_liked=True,
@@ -470,7 +470,7 @@ class RunnerTests(unittest.TestCase):
                 posts=[
                     PostSnapshot(
                         post_id="p1",
-                        post_url="https://www.linkedin.com/feed/update/p1",
+                        post_url=None,
                         text="Post p1",
                         sponsored=False,
                         already_liked=True,
@@ -560,7 +560,7 @@ class RunnerTests(unittest.TestCase):
                 posts=[
                     PostSnapshot(
                         post_id="p1",
-                        post_url="https://www.linkedin.com/feed/update/p1",
+                        post_url=None,
                         text="Post p1",
                         sponsored=False,
                         already_liked=False,
@@ -590,6 +590,109 @@ class RunnerTests(unittest.TestCase):
 
             self.assertEqual(report.comments_liked, 1)
             self.assertEqual(browser.comment_load_more_calls, [0])
+            self.assertIn("card:0:comment:0:like", browser.clicks)
+            store.close()
+
+    def test_process_feed_rechecks_actor_after_comment_expand_false_negative(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            artifact_dir = Path(tmpdir)
+            store = StateStore(artifact_dir / "state.sqlite3")
+            timestamp = "2026-03-28T10:00:00+00:00"
+            browser = FakeBrowser()
+            report = RunReport(run_id="run-actor-recheck", started_at=timestamp)
+            config = self.make_config(artifact_dir)
+            config.comment_cap = 12
+            config.max_passes = 0
+            first = FeedSnapshot(
+                actor_name="Example Company",
+                actor_verified=True,
+                search_shape_ok=True,
+                search_markers=["keyword:opportunities", "content-view", "latest-sort", "photo-filter", "org-filter"],
+                challenge_signals=[],
+                posts=[
+                    PostSnapshot(
+                        post_id="p1",
+                        post_url=None,
+                        text="Post p1",
+                        sponsored=False,
+                        already_liked=False,
+                        already_reposted=False,
+                        interactable=True,
+                        like_selector="selector:p1",
+                        repost_selector="selector:p1:repost",
+                        comments_expanded=False,
+                        comment_toggle_selector="card:0:comment-toggle",
+                        reply_toggle_selectors=[],
+                        comments=[],
+                    )
+                ],
+            )
+            bad_refresh = FeedSnapshot(
+                actor_name=None,
+                actor_verified=False,
+                search_shape_ok=True,
+                search_markers=["keyword:opportunities", "content-view", "latest-sort", "photo-filter", "org-filter"],
+                challenge_signals=[],
+                posts=[
+                    PostSnapshot(
+                        post_id="p1",
+                        post_url=None,
+                        text="Post p1",
+                        sponsored=False,
+                        already_liked=True,
+                        already_reposted=False,
+                        interactable=True,
+                        like_selector="selector:p1",
+                        repost_selector="selector:p1:repost",
+                        comments_expanded=True,
+                        comment_toggle_selector="card:0:comment-toggle",
+                        reply_toggle_selectors=[],
+                        comments=[],
+                    )
+                ],
+            )
+            recovered_refresh = FeedSnapshot(
+                actor_name=None,
+                actor_verified=False,
+                search_shape_ok=True,
+                search_markers=["keyword:opportunities", "content-view", "latest-sort", "photo-filter", "org-filter"],
+                challenge_signals=[],
+                posts=[
+                    PostSnapshot(
+                        post_id="p1",
+                        post_url=None,
+                        text="Post p1",
+                        sponsored=False,
+                        already_liked=True,
+                        already_reposted=False,
+                        interactable=True,
+                        like_selector="selector:p1",
+                        repost_selector="selector:p1:repost",
+                        comments_expanded=True,
+                        comment_toggle_selector="card:0:comment-toggle",
+                        reply_toggle_selectors=[],
+                        comments=[
+                            CommentSnapshot(
+                                comment_id="comment-1",
+                                parent_post_id="p1",
+                                parent_comment_id=None,
+                                text="Need to like",
+                                liked=False,
+                                like_selector="card:0:comment:0:like",
+                            )
+                        ],
+                    )
+                ],
+            )
+
+            with patch("linkedin.company_profile_engagement.runner.capture_current_snapshot", side_effect=[bad_refresh, recovered_refresh]):
+                process_feed(first, store, report, browser, config)
+
+            self.assertEqual(report.status, "started")
+            self.assertEqual(report.comments_liked, 1)
+            self.assertTrue(
+                any(event.get("type") == "actor_recheck_completed" and event.get("recovered") for event in report.events)
+            )
             self.assertIn("card:0:comment:0:like", browser.clicks)
             store.close()
 

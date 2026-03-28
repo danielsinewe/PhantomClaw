@@ -22,13 +22,25 @@ COLLECTOR_SCRIPT = r"""
     "security check",
   ].filter((signal) => text.includes(signal));
 
-  const actorNode = Array.from(document.querySelectorAll("[aria-label], [data-actor-name], button, span, div"))
-    .find((node) => /acting as|commenting as|current actor|identity/i.test(node.textContent || ""));
   let actorName = null;
-  if (actorNode) {
-    const actorText = (actorNode.textContent || "").replace(/\s+/g, " ").trim();
-    const actorMatch = actorText.match(/(?:acting as|commenting as|current actor|identity)\s*:?\s*(.+)$/i);
-    actorName = (actorMatch ? actorMatch[1] : actorText) || null;
+  const actorDataNode = Array.from(document.querySelectorAll("[data-actor-name]"))
+    .find((node) => {
+      const value = (node.getAttribute("data-actor-name") || "").replace(/\s+/g, " ").trim();
+      return value && value.length <= 120;
+    });
+  if (actorDataNode) {
+    actorName = (actorDataNode.getAttribute("data-actor-name") || "").replace(/\s+/g, " ").trim() || null;
+  }
+  if (!actorName) {
+    const actorText = Array.from(
+      document.querySelectorAll('div[aria-label="Open actor selection screen"], button, span, div')
+    )
+      .map((node) => (node.textContent || "").replace(/\s+/g, " ").trim())
+      .find((value) => value && value.length <= 120 && /acting as|commenting as|current actor/i.test(value));
+    if (actorText) {
+      const actorMatch = actorText.match(/(?:acting as|commenting as|current actor)\s*:?\s*(.+)$/i);
+      actorName = (actorMatch ? actorMatch[1] : actorText) || null;
+    }
   }
 
   const searchMarkers = [];

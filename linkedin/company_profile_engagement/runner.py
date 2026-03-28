@@ -137,6 +137,29 @@ def capture_current_snapshot(browser: BrowserUseClient, actor_name: str) -> Feed
     return parse_browser_payload(payload, actor_name, html)
 
 
+def reconfirm_feed_actor(
+    browser: BrowserUseClient,
+    config: RunnerConfig,
+    report: RunReport,
+    snapshot: FeedSnapshot,
+    *,
+    context: str,
+) -> FeedSnapshot:
+    if snapshot.actor_verified:
+        return snapshot
+    add_event(report, "actor_recheck_attempt", context=context)
+    actor_selected = browser.ensure_actor(config.actor_name)
+    browser.sleep(0.8)
+    if not actor_selected:
+        add_event(report, "actor_recheck_completed", context=context, recovered=False)
+        return snapshot
+    refreshed = capture_current_snapshot(browser, config.actor_name)
+    refreshed.actor_verified = True
+    refreshed.actor_name = config.actor_name
+    add_event(report, "actor_recheck_completed", context=context, recovered=True)
+    return refreshed
+
+
 def capture_agency_snapshot(browser: BrowserUseClient) -> AgencyFeedSnapshot:
     raw = browser.collect_follow_payload()
     payload = json.loads(raw)
@@ -288,6 +311,7 @@ def process_feed(
             add_event(report, "results_advanced", mode="scroll", pass_index=pass_index, amount=SCROLL_AMOUNT)
             jitter_sleep(browser, 0.9, 1.6)
         snapshot = capture_current_snapshot(browser, config.actor_name)
+        snapshot = reconfirm_feed_actor(browser, config, report, snapshot, context="search_pagination")
         if stop_for_invalid_snapshot(report, snapshot):
             return
         pass_index += 1
@@ -418,6 +442,7 @@ def process_visible_posts(
             browser.click_selector(post.comment_toggle_selector)
             jitter_sleep(browser, 0.7, 1.4)
             refreshed = capture_current_snapshot(browser, config.actor_name)
+            refreshed = reconfirm_feed_actor(browser, config, report, refreshed, context="comment_thread_expand")
             if stop_for_invalid_snapshot(report, refreshed):
                 return posts_remaining, reposts_remaining, comments_remaining
             refreshed_post = next((item for item in refreshed.posts if item.post_id == post.post_id), None)
@@ -429,6 +454,7 @@ def process_visible_posts(
             add_event(report, "comment_load_more_attempt", post_id=post.post_id, position_index=position_index)
             jitter_sleep(browser, 0.7, 1.4)
             refreshed = capture_current_snapshot(browser, config.actor_name)
+            refreshed = reconfirm_feed_actor(browser, config, report, refreshed, context="comment_load_more")
             if stop_for_invalid_snapshot(report, refreshed):
                 return posts_remaining, reposts_remaining, comments_remaining
             refreshed_post = next((item for item in refreshed.posts if item.post_id == post.post_id), None)

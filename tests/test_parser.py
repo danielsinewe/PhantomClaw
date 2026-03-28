@@ -80,6 +80,25 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(snapshot.posts[0].post_url, "https://www.linkedin.com/feed/update/urn:li:activity:1001")
         self.assertEqual(snapshot.posts[1].post_id, "urn:li:activity:1002")
 
+    def test_parse_browser_payload_ignores_internal_actor_state_blob(self) -> None:
+        payload = """
+        {
+          "actor_name": "identitySwitcherActorContext-urn:li:activity:12345 proto.sdui.State commentBoxText-abc",
+          "actor_verified": true,
+          "search_shape_ok": true,
+          "search_markers": ["keyword:opportunities", "content-view", "latest-sort", "photo-filter", "org-filter"],
+          "challenge_signals": [],
+          "posts": []
+        }
+        """
+        html = """
+        <div>acting as Example Company</div>
+        <div>opportunities posts latest photo organization filter</div>
+        """
+        snapshot = parse_browser_payload(payload, "Example Company", html)
+        self.assertTrue(snapshot.actor_verified)
+        self.assertEqual(snapshot.actor_name, "Example Company")
+
 
 if __name__ == "__main__":
     unittest.main()
