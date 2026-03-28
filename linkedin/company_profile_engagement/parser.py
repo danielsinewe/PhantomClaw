@@ -21,7 +21,7 @@ SEARCH_MARKERS = (
     ("content-view", ("posts",)),
     ("latest-sort", ("latest",)),
     ("photo-filter", ("photo", "images")),
-    ("org-filter", ("trustoutreach", "instantly.ai")),
+    ("org-filter", ("organization filter", "mentions organization", "company filter")),
 )
 
 
@@ -186,9 +186,13 @@ def parse_browser_payload(payload: str, actor_name: str, html: str | None = None
                 comments=comments,
             )
         )
+    payload_actor_name = data.get("actor_name")
+    actor_verified = bool(data.get("actor_verified", False))
+    if payload_actor_name and actor_name:
+        actor_verified = payload_actor_name.strip().lower() == actor_name.strip().lower()
     return FeedSnapshot(
-        actor_name=data.get("actor_name"),
-        actor_verified=data.get("actor_verified", False),
+        actor_name=payload_actor_name,
+        actor_verified=actor_verified,
         search_shape_ok=data.get("search_shape_ok", False),
         search_markers=data.get("search_markers", []),
         challenge_signals=data.get("challenge_signals", []),

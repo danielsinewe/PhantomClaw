@@ -1,6 +1,6 @@
 import unittest
 
-from trustoutreach_linkedin.browser_use_client import BrowserUseClient, BrowserUseError
+from linkedin.company_profile_engagement.browser_use_client import BrowserUseClient, BrowserUseError
 
 
 class BrowserUseClientTests(unittest.TestCase):

@@ -23,15 +23,20 @@ COLLECTOR_SCRIPT = r"""
   ].filter((signal) => text.includes(signal));
 
   const actorNode = Array.from(document.querySelectorAll("[aria-label], [data-actor-name], button, span, div"))
-    .find((node) => /acting as|commenting as|current actor|identity/i.test(node.textContent || "") && /TrustOutreach/i.test(node.textContent || ""));
-  const actorName = actorNode ? "TrustOutreach" : null;
+    .find((node) => /acting as|commenting as|current actor|identity/i.test(node.textContent || ""));
+  let actorName = null;
+  if (actorNode) {
+    const actorText = (actorNode.textContent || "").replace(/\s+/g, " ").trim();
+    const actorMatch = actorText.match(/(?:acting as|commenting as|current actor|identity)\s*:?\s*(.+)$/i);
+    actorName = (actorMatch ? actorMatch[1] : actorText) || null;
+  }
 
   const searchMarkers = [];
   if (text.includes("opportunities") || url.includes("keywords=opportunities")) searchMarkers.push("keyword:opportunities");
   if (text.includes("posts")) searchMarkers.push("content-view");
   if (text.includes("latest")) searchMarkers.push("latest-sort");
   if (text.includes("photo") || text.includes("images") || url.includes("contenttype=%5b%22photos%22%5d")) searchMarkers.push("photo-filter");
-  if (text.includes("trustoutreach") || text.includes("instantly.ai") || url.includes("mentionsorganization=%5b%2279083508%22%5d")) searchMarkers.push("org-filter");
+  if (text.includes("organization filter") || text.includes("mentions organization") || url.includes("mentionsorganization=")) searchMarkers.push("org-filter");
 
   const normalizeId = (value) => {
     if (!value) return null;
@@ -135,7 +140,7 @@ COLLECTOR_SCRIPT = r"""
 
   return JSON.stringify({
     actor_name: actorName,
-    actor_verified: actorName === "TrustOutreach",
+    actor_verified: Boolean(actorName),
     search_shape_ok: searchMarkers.length === 5,
     search_markers: searchMarkers,
     challenge_signals: challengeSignals,

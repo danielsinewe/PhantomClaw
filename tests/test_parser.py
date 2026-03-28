@@ -1,7 +1,7 @@
 from pathlib import Path
 import unittest
 
-from trustoutreach_linkedin.parser import parse_browser_payload, parse_feed_html
+from linkedin.company_profile_engagement.parser import parse_browser_payload, parse_feed_html
 
 
 FIXTURES = Path("tests/fixtures")
@@ -10,7 +10,7 @@ FIXTURES = Path("tests/fixtures")
 class ParserTests(unittest.TestCase):
     def test_parse_normal_feed_fixture(self) -> None:
         html = (FIXTURES / "normal_feed.html").read_text()
-        snapshot = parse_feed_html(html, "TrustOutreach")
+        snapshot = parse_feed_html(html, "Example Company")
         self.assertTrue(snapshot.actor_verified)
         self.assertTrue(snapshot.search_shape_ok)
         self.assertEqual(len(snapshot.posts), 2)
@@ -20,13 +20,13 @@ class ParserTests(unittest.TestCase):
 
     def test_parse_promoted_fixture(self) -> None:
         html = (FIXTURES / "promoted_feed.html").read_text()
-        snapshot = parse_feed_html(html, "TrustOutreach")
+        snapshot = parse_feed_html(html, "Example Company")
         self.assertTrue(snapshot.posts[0].sponsored)
         self.assertTrue(snapshot.posts[0].already_liked)
 
     def test_parse_actor_missing_fixture(self) -> None:
         html = (FIXTURES / "actor_missing.html").read_text()
-        snapshot = parse_feed_html(html, "TrustOutreach")
+        snapshot = parse_feed_html(html, "Example Company")
         self.assertFalse(snapshot.actor_verified)
         self.assertIsNone(snapshot.actor_name)
 
@@ -75,7 +75,7 @@ class ParserTests(unittest.TestCase):
         commentsSectionAnchor-urn:li:activity:1002
         </script>
         """
-        snapshot = parse_browser_payload(payload, "TrustOutreach", html)
+        snapshot = parse_browser_payload(payload, "Example Company", html)
         self.assertEqual(snapshot.posts[0].post_id, "urn:li:activity:1001")
         self.assertEqual(snapshot.posts[0].post_url, "https://www.linkedin.com/feed/update/urn:li:activity:1001")
         self.assertEqual(snapshot.posts[1].post_id, "urn:li:activity:1002")

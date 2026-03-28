@@ -27,7 +27,6 @@ This repository is the public automation engine, not the full hosted product sur
 
 Legacy internal package names are still present for compatibility:
 
-- `trustoutreach_linkedin` maps to `linkedin-company-profile-engagement`
 - `linkedin_sales_community` maps to `linkedin-sales-community-engagement`
 
 ## Quick Start
@@ -40,8 +39,7 @@ Legacy internal package names are still present for compatibility:
 ```bash
 .venv/bin/python -m unittest
 .venv/bin/python -m linkedin.company_profile_engagement.runner --dry-run --fixture tests/fixtures/normal_feed.html
-.venv/bin/python -m trustoutreach_linkedin.runner --dry-run --fixture tests/fixtures/normal_feed.html
-.venv/bin/python scripts/export_run_bundle.py --automation-name linkedin-company-profile-engagement --report-path artifacts/trustoutreach-linkedin/<run-id>.json
+.venv/bin/python scripts/export_run_bundle.py --automation-name linkedin-company-profile-engagement --report-path artifacts/linkedin-company-profile-engagement/<run-id>.json
 ```
 
 ## Open Source Readiness
@@ -68,10 +66,10 @@ Shared:
 
 - `AUTOMATION_ANALYTICS_DATABASE_URL`
 
-TrustOutreach LinkedIn:
+LinkedIn Company Profile Engagement:
 
-- required: `TRUSTOUTREACH_LINKEDIN_SEARCH_URL`, `TRUSTOUTREACH_LINKEDIN_PROFILE`
-- optional: `TRUSTOUTREACH_LINKEDIN_ACTOR`, `TRUSTOUTREACH_LINKEDIN_SESSION`, `TRUSTOUTREACH_LINKEDIN_POST_CAP`, `TRUSTOUTREACH_LINKEDIN_REPOST_CAP`, `TRUSTOUTREACH_LINKEDIN_COMMENT_CAP`, `TRUSTOUTREACH_LINKEDIN_MAX_PASSES`, `TRUSTOUTREACH_LINKEDIN_FOLLOW_CAP`, `TRUSTOUTREACH_LINKEDIN_DATABASE_URL`
+- required: `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_SEARCH_URL`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_PROFILE`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_ACTOR`
+- optional: `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_SESSION`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_POST_CAP`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_REPOST_CAP`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_COMMENT_CAP`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_MAX_PASSES`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_FOLLOW_CAP`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_DATABASE_URL`
 
 LinkedIn Sales Community:
 
@@ -82,10 +80,10 @@ LinkedIn Sales Community:
 
 Local artifacts are written under `./artifacts/` and ignored by git.
 
-TrustOutreach writes:
+LinkedIn Company Profile Engagement writes:
 
-- `artifacts/trustoutreach-linkedin/` JSON reports and screenshots
-- `artifacts/trustoutreach-linkedin/state.sqlite3` when Postgres is not configured
+- `artifacts/linkedin-company-profile-engagement/` JSON reports and screenshots
+- `artifacts/linkedin-company-profile-engagement/state.sqlite3` when Postgres is not configured
 
 LinkedIn Sales Community writes:
 

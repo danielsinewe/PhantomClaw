@@ -86,7 +86,7 @@ def _report_to_dict(report: Any) -> dict[str, Any]:
     raise TypeError(f"Unsupported report type: {type(report)!r}")
 
 
-def trustoutreach_metrics(report: Any) -> dict[str, Any]:
+def linkedin_company_profile_engagement_metrics(report: Any) -> dict[str, Any]:
     data = _report_to_dict(report)
     return {
         "page_shape_ok": None,

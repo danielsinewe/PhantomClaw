@@ -6,13 +6,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-DEFAULT_DB_PATH = Path("artifacts/trustoutreach-linkedin/state.sqlite3")
-DEFAULT_ARTIFACT_DIR = Path("artifacts/trustoutreach-linkedin")
-DEFAULT_SESSION = "trustoutreach-linkedin"
+ENV_PREFIX = "LINKEDIN_COMPANY_PROFILE_ENGAGEMENT"
+
+DEFAULT_DB_PATH = Path("artifacts/linkedin-company-profile-engagement/state.sqlite3")
+DEFAULT_ARTIFACT_DIR = Path("artifacts/linkedin-company-profile-engagement")
+DEFAULT_SESSION = "linkedin-company-profile-engagement"
 DEFAULT_POST_CAP = 3
 DEFAULT_REPOST_CAP = 1
 DEFAULT_COMMENT_CAP = 12
-DEFAULT_ACTOR_NAME = "TrustOutreach"
+DEFAULT_ACTOR_NAME = "Example Company"
 DEFAULT_MAX_PASSES = 6
 DEFAULT_FOLLOW_ADMIN_URL = "https://www.linkedin.com/company/109821516/admin/dashboard/?manageFollowing=true"
 DEFAULT_FOLLOW_CAP = 25
@@ -40,39 +42,39 @@ class RunnerConfig:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="TrustOutreach LinkedIn runner")
-    parser.add_argument("--search-url", default=os.getenv("TRUSTOUTREACH_LINKEDIN_SEARCH_URL"))
-    parser.add_argument("--chrome-profile", default=os.getenv("TRUSTOUTREACH_LINKEDIN_PROFILE"))
-    parser.add_argument("--actor-name", default=os.getenv("TRUSTOUTREACH_LINKEDIN_ACTOR", DEFAULT_ACTOR_NAME))
-    parser.add_argument("--session-name", default=os.getenv("TRUSTOUTREACH_LINKEDIN_SESSION", DEFAULT_SESSION))
-    parser.add_argument("--post-cap", type=int, default=int(os.getenv("TRUSTOUTREACH_LINKEDIN_POST_CAP", DEFAULT_POST_CAP)))
+    parser = argparse.ArgumentParser(description="LinkedIn company profile engagement runner")
+    parser.add_argument("--search-url", default=os.getenv(f"{ENV_PREFIX}_SEARCH_URL"))
+    parser.add_argument("--chrome-profile", default=os.getenv(f"{ENV_PREFIX}_PROFILE"))
+    parser.add_argument("--actor-name", default=os.getenv(f"{ENV_PREFIX}_ACTOR", DEFAULT_ACTOR_NAME))
+    parser.add_argument("--session-name", default=os.getenv(f"{ENV_PREFIX}_SESSION", DEFAULT_SESSION))
+    parser.add_argument("--post-cap", type=int, default=int(os.getenv(f"{ENV_PREFIX}_POST_CAP", DEFAULT_POST_CAP)))
     parser.add_argument(
         "--repost-cap",
         type=int,
-        default=int(os.getenv("TRUSTOUTREACH_LINKEDIN_REPOST_CAP", DEFAULT_REPOST_CAP)),
+        default=int(os.getenv(f"{ENV_PREFIX}_REPOST_CAP", DEFAULT_REPOST_CAP)),
     )
     parser.add_argument(
         "--comment-cap",
         type=int,
-        default=int(os.getenv("TRUSTOUTREACH_LINKEDIN_COMMENT_CAP", DEFAULT_COMMENT_CAP)),
+        default=int(os.getenv(f"{ENV_PREFIX}_COMMENT_CAP", DEFAULT_COMMENT_CAP)),
     )
     parser.add_argument(
         "--max-passes",
         type=int,
-        default=int(os.getenv("TRUSTOUTREACH_LINKEDIN_MAX_PASSES", DEFAULT_MAX_PASSES)),
+        default=int(os.getenv(f"{ENV_PREFIX}_MAX_PASSES", DEFAULT_MAX_PASSES)),
     )
     parser.add_argument(
         "--follow-admin-url",
-        default=os.getenv("TRUSTOUTREACH_LINKEDIN_FOLLOW_ADMIN_URL", DEFAULT_FOLLOW_ADMIN_URL),
+        default=os.getenv(f"{ENV_PREFIX}_FOLLOW_ADMIN_URL", DEFAULT_FOLLOW_ADMIN_URL),
     )
     parser.add_argument(
         "--follow-cap",
         type=int,
-        default=int(os.getenv("TRUSTOUTREACH_LINKEDIN_FOLLOW_CAP", DEFAULT_FOLLOW_CAP)),
+        default=int(os.getenv(f"{ENV_PREFIX}_FOLLOW_CAP", DEFAULT_FOLLOW_CAP)),
     )
-    parser.add_argument("--dry-run", action="store_true", default=os.getenv("TRUSTOUTREACH_LINKEDIN_DRY_RUN") == "1")
+    parser.add_argument("--dry-run", action="store_true", default=os.getenv(f"{ENV_PREFIX}_DRY_RUN") == "1")
     parser.add_argument("--fixture", type=Path)
-    parser.add_argument("--database-url", default=os.getenv("TRUSTOUTREACH_LINKEDIN_DATABASE_URL"))
+    parser.add_argument("--database-url", default=os.getenv(f"{ENV_PREFIX}_DATABASE_URL"))
     parser.add_argument("--analytics-database-url", default=os.getenv("AUTOMATION_ANALYTICS_DATABASE_URL"))
     parser.add_argument("--db-path", type=Path, default=DEFAULT_DB_PATH)
     parser.add_argument("--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR)
@@ -85,9 +87,11 @@ def parse_config(argv: list[str] | None = None) -> RunnerConfig:
     if not args.dry_run:
         missing = []
         if not args.search_url:
-            missing.append("TRUSTOUTREACH_LINKEDIN_SEARCH_URL")
+            missing.append(f"{ENV_PREFIX}_SEARCH_URL")
         if not args.chrome_profile:
-            missing.append("TRUSTOUTREACH_LINKEDIN_PROFILE")
+            missing.append(f"{ENV_PREFIX}_PROFILE")
+        if not args.actor_name:
+            missing.append(f"{ENV_PREFIX}_ACTOR")
         if missing:
             names = ", ".join(missing)
             raise SystemExit(f"Missing required configuration: {names}")

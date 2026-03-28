@@ -1,12 +1,12 @@
 import unittest
 
-from automation_analytics import linkedin_sales_community_metrics, trustoutreach_metrics
+from automation_analytics import linkedin_company_profile_engagement_metrics, linkedin_sales_community_metrics
 from linkedin_sales_community.models import CommunityRunReport
-from trustoutreach_linkedin.models import RunReport
+from linkedin.company_profile_engagement.models import RunReport
 
 
 class AutomationAnalyticsTests(unittest.TestCase):
-    def test_trustoutreach_metrics_normalize_actions(self) -> None:
+    def test_company_profile_metrics_normalize_actions(self) -> None:
         report = RunReport(
             run_id="run-1",
             started_at="2026-03-28T08:00:00+00:00",
@@ -20,7 +20,7 @@ class AutomationAnalyticsTests(unittest.TestCase):
             agencies_scanned=4,
             agencies_followed=1,
         )
-        metrics = trustoutreach_metrics(report)
+        metrics = linkedin_company_profile_engagement_metrics(report)
         self.assertEqual(metrics["items_scanned"], 19)
         self.assertEqual(metrics["actions_total"], 7)
         self.assertEqual(metrics["likes_count"], 3)

@@ -2,8 +2,8 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from trustoutreach_linkedin.models import AgencyFeedSnapshot, AgencySnapshot, CommentSnapshot, FeedSnapshot, PostSnapshot, RunReport
-from trustoutreach_linkedin.state import StateStore
+from linkedin.company_profile_engagement.models import AgencyFeedSnapshot, AgencySnapshot, CommentSnapshot, FeedSnapshot, PostSnapshot, RunReport
+from linkedin.company_profile_engagement.state import StateStore
 
 
 class StateStoreTests(unittest.TestCase):
@@ -40,7 +40,7 @@ class StateStoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             store = StateStore(Path(temp_dir) / "state.sqlite3")
             snapshot = FeedSnapshot(
-                actor_name="TrustOutreach",
+                actor_name="Example Company",
                 actor_verified=True,
                 search_shape_ok=True,
                 search_markers=["keyword:opportunities"],

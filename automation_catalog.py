@@ -11,6 +11,7 @@ LINKEDIN_SALES_COMMUNITY_ENGAGEMENT = "linkedin-sales-community-engagement"
 
 LEGACY_AUTOMATION_NAMES = {
     "trustoutreach-linkedin": LINKEDIN_COMPANY_PROFILE_ENGAGEMENT,
+    "company-profile-engagement": LINKEDIN_COMPANY_PROFILE_ENGAGEMENT,
     "linkedin-sales-community": LINKEDIN_SALES_COMMUNITY_ENGAGEMENT,
 }
 

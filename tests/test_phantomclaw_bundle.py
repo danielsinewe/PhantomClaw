@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from phantomclaw_bundle import BUNDLE_SCHEMA_VERSION, build_run_bundle, build_run_bundle_from_path
-from trustoutreach_linkedin.models import RunReport
+from linkedin.company_profile_engagement.models import RunReport
 
 
 class PhantomClawBundleTests(unittest.TestCase):
@@ -21,7 +21,7 @@ class PhantomClawBundleTests(unittest.TestCase):
             comments_liked=1,
             agencies_followed=1,
         )
-        bundle = build_run_bundle(automation_name="trustoutreach-linkedin", report=report)
+        bundle = build_run_bundle(automation_name="linkedin-company-profile-engagement", report=report)
         self.assertEqual(bundle["schema_version"], BUNDLE_SCHEMA_VERSION)
         self.assertEqual(bundle["automation"]["name"], "linkedin-company-profile-engagement")
         self.assertEqual(bundle["automation"]["platform"], "linkedin")
@@ -55,4 +55,3 @@ class PhantomClawBundleTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -3,10 +3,10 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from trustoutreach_linkedin.config import RunnerConfig
-from trustoutreach_linkedin.models import AgencyFeedSnapshot, AgencySnapshot, CommentSnapshot, FeedSnapshot, PostSnapshot, RunReport
-from trustoutreach_linkedin.runner import process_agency_follows, process_feed
-from trustoutreach_linkedin.state import StateStore
+from linkedin.company_profile_engagement.config import RunnerConfig
+from linkedin.company_profile_engagement.models import AgencyFeedSnapshot, AgencySnapshot, CommentSnapshot, FeedSnapshot, PostSnapshot, RunReport
+from linkedin.company_profile_engagement.runner import process_agency_follows, process_feed
+from linkedin.company_profile_engagement.state import StateStore
 
 
 def make_post(post_id: str) -> PostSnapshot:
@@ -29,7 +29,7 @@ def make_post(post_id: str) -> PostSnapshot:
 
 def make_snapshot(*post_ids: str, search_shape_ok: bool = True) -> FeedSnapshot:
     return FeedSnapshot(
-        actor_name="TrustOutreach",
+        actor_name="Example Company",
         actor_verified=True,
         search_shape_ok=search_shape_ok,
         search_markers=["keyword:opportunities", "content-view", "latest-sort", "photo-filter", "org-filter"]
@@ -64,7 +64,7 @@ class FakeBrowser:
         self.opens.append(url)
 
     def ensure_actor(self, actor_name: str) -> bool:
-        return self.ensure_actor_result and actor_name == "TrustOutreach"
+        return self.ensure_actor_result and actor_name == "Example Company"
 
     def get_page_state(self) -> dict[str, object]:
         return dict(self.page_state)
@@ -103,7 +103,7 @@ class RunnerTests(unittest.TestCase):
         return RunnerConfig(
             search_url="https://www.linkedin.com/search/results/content/",
             chrome_profile="work-profile",
-            actor_name="TrustOutreach",
+            actor_name="Example Company",
             session_name="test-session",
             post_cap=3,
             repost_cap=1,
@@ -133,7 +133,7 @@ class RunnerTests(unittest.TestCase):
             first = make_snapshot("p1", "p2", "p3")
             second = make_snapshot("p3", "p4", "p5")
 
-            with patch("trustoutreach_linkedin.runner.capture_current_snapshot", side_effect=[second, second, second]):
+            with patch("linkedin.company_profile_engagement.runner.capture_current_snapshot", side_effect=[second, second, second]):
                 process_feed(first, store, report, browser, self.make_config(artifact_dir))
 
             self.assertEqual(report.status, "started")
@@ -190,7 +190,7 @@ class RunnerTests(unittest.TestCase):
                 ],
             )
 
-            with patch("trustoutreach_linkedin.runner.capture_agency_snapshot", side_effect=[first, confirmed, confirmed, confirmed]):
+            with patch("linkedin.company_profile_engagement.runner.capture_agency_snapshot", side_effect=[first, confirmed, confirmed, confirmed]):
                 process_agency_follows(store, report, browser, config)
 
             self.assertEqual(report.agencies_scanned, 1)
@@ -237,7 +237,7 @@ class RunnerTests(unittest.TestCase):
                 agencies=[],
             )
 
-            with patch("trustoutreach_linkedin.runner.capture_agency_snapshot", side_effect=[first, switched, switched, switched]):
+            with patch("linkedin.company_profile_engagement.runner.capture_agency_snapshot", side_effect=[first, switched, switched, switched]):
                 process_agency_follows(store, report, browser, config)
 
             self.assertEqual(report.agencies_followed, 1)
@@ -260,7 +260,7 @@ class RunnerTests(unittest.TestCase):
                 agencies=[],
             )
 
-            with patch("trustoutreach_linkedin.runner.capture_agency_snapshot", return_value=invalid):
+            with patch("linkedin.company_profile_engagement.runner.capture_agency_snapshot", return_value=invalid):
                 process_agency_follows(store, report, browser, config)
 
             self.assertEqual(report.status, "stopped")
@@ -282,7 +282,7 @@ class RunnerTests(unittest.TestCase):
             first = make_snapshot("p1", "p2", "p3")
             second = make_snapshot("p3", "p4")
 
-            with patch("trustoutreach_linkedin.runner.capture_current_snapshot", side_effect=[second, second, second]):
+            with patch("linkedin.company_profile_engagement.runner.capture_current_snapshot", side_effect=[second, second, second]):
                 process_feed(first, store, report, browser, self.make_config(artifact_dir))
 
             self.assertEqual(report.posts_scanned, 4)
@@ -304,7 +304,7 @@ class RunnerTests(unittest.TestCase):
             first = make_snapshot("p1")
             drifted = make_snapshot("p2", search_shape_ok=False)
 
-            with patch("trustoutreach_linkedin.runner.capture_current_snapshot", return_value=drifted):
+            with patch("linkedin.company_profile_engagement.runner.capture_current_snapshot", return_value=drifted):
                 process_feed(first, store, report, browser, self.make_config(artifact_dir))
 
             self.assertEqual(report.status, "stopped")
@@ -355,7 +355,7 @@ class RunnerTests(unittest.TestCase):
             config.comment_cap = 12
             config.max_passes = 0
             detail = FeedSnapshot(
-                actor_name="TrustOutreach",
+                actor_name="Example Company",
                 actor_verified=True,
                 search_shape_ok=False,
                 search_markers=[],
@@ -388,7 +388,7 @@ class RunnerTests(unittest.TestCase):
                 ],
             )
 
-            with patch("trustoutreach_linkedin.runner.capture_current_snapshot", side_effect=[detail]):
+            with patch("linkedin.company_profile_engagement.runner.capture_current_snapshot", side_effect=[detail]):
                 process_feed(first, store, report, browser, config)
 
             self.assertEqual(report.comments_liked, 1)
@@ -425,7 +425,7 @@ class RunnerTests(unittest.TestCase):
                 posts=[],
             )
 
-            with patch("trustoutreach_linkedin.runner.capture_current_snapshot", side_effect=[detail]):
+            with patch("linkedin.company_profile_engagement.runner.capture_current_snapshot", side_effect=[detail]):
                 process_feed(first, store, report, browser, config)
 
             self.assertEqual(report.status, "started")
@@ -495,7 +495,7 @@ class RunnerTests(unittest.TestCase):
                 ],
             )
 
-            with patch("trustoutreach_linkedin.runner.capture_current_snapshot", side_effect=[detail]):
+            with patch("linkedin.company_profile_engagement.runner.capture_current_snapshot", side_effect=[detail]):
                 process_feed(first, store, report, browser, config)
 
             self.assertEqual(report.status, "started")
@@ -552,7 +552,7 @@ class RunnerTests(unittest.TestCase):
             config.max_passes = 0
             expanded = make_snapshot("p1")
             loaded = FeedSnapshot(
-                actor_name="TrustOutreach",
+                actor_name="Example Company",
                 actor_verified=True,
                 search_shape_ok=True,
                 search_markers=["keyword:opportunities", "content-view", "latest-sort", "photo-filter", "org-filter"],
@@ -585,7 +585,7 @@ class RunnerTests(unittest.TestCase):
                 ],
             )
 
-            with patch("trustoutreach_linkedin.runner.capture_current_snapshot", side_effect=[expanded, loaded]):
+            with patch("linkedin.company_profile_engagement.runner.capture_current_snapshot", side_effect=[expanded, loaded]):
                 process_feed(first, store, report, browser, config)
 
             self.assertEqual(report.comments_liked, 1)

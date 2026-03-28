@@ -1,2 +1,1 @@
-"""LinkedIn company profile engagement automation."""
-
+"""LinkedIn company profile engagement automation package."""
