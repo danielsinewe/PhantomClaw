@@ -36,6 +36,7 @@ This repository is the public automation engine, not the full hosted product sur
 .venv/bin/python -m unittest
 .venv/bin/python -m linkedin.company_profile_engagement.runner --dry-run --fixture tests/fixtures/normal_feed.html
 .venv/bin/python scripts/export_run_bundle.py --automation-name linkedin-company-profile-engagement --report-path artifacts/linkedin-company-profile-engagement/<run-id>.json
+.venv/bin/python scripts/export_run_bundle.py --print-schema
 ```
 
 ## Open Source Readiness

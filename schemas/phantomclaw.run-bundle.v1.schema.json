@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phantomclaw.ai/schemas/phantomclaw.run-bundle.v1.schema.json",
+  "title": "PhantomClaw Run Bundle v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "source",
+    "automation",
+    "run",
+    "metrics",
+    "report"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "phantomclaw.run-bundle.v1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["project", "channel"],
+      "properties": {
+        "project": { "type": "string" },
+        "channel": { "type": "string" },
+        "artifact_path": { "type": ["string", "null"] },
+        "search_url": { "type": ["string", "null"] }
+      }
+    },
+    "automation": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "label", "platform", "surface"],
+      "properties": {
+        "name": { "type": "string" },
+        "label": { "type": "string" },
+        "platform": { "type": "string" },
+        "surface": { "type": ["string", "null"] }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["run_id", "started_at", "status"],
+      "properties": {
+        "run_id": { "type": "string" },
+        "started_at": { "type": "string", "format": "date-time" },
+        "finished_at": { "type": ["string", "null"] },
+        "status": { "type": "string" },
+        "stop_reason": { "type": ["string", "null"] },
+        "screenshot_path": { "type": ["string", "null"] }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "items_scanned",
+        "items_considered",
+        "actions_total",
+        "likes_count",
+        "reposts_count",
+        "comments_liked_count",
+        "follows_count",
+        "metrics_json"
+      ],
+      "properties": {
+        "items_scanned": { "type": "integer", "minimum": 0 },
+        "items_considered": { "type": "integer", "minimum": 0 },
+        "actions_total": { "type": "integer", "minimum": 0 },
+        "likes_count": { "type": "integer", "minimum": 0 },
+        "reposts_count": { "type": "integer", "minimum": 0 },
+        "comments_liked_count": { "type": "integer", "minimum": 0 },
+        "follows_count": { "type": "integer", "minimum": 0 },
+        "metrics_json": { "type": "object" }
+      }
+    },
+    "report": {
+      "type": "object"
+    }
+  }
+}

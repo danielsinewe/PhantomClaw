@@ -76,5 +76,12 @@ The public repo now includes:
 
 - bundle builder: [`phantomclaw_bundle.py`](../phantomclaw_bundle.py)
 - export script: [`scripts/export_run_bundle.py`](../scripts/export_run_bundle.py)
+- schema document: [`schemas/phantomclaw.run-bundle.v1.schema.json`](../schemas/phantomclaw.run-bundle.v1.schema.json)
+
+The schema can be inspected directly without a run artifact:
+
+```bash
+.venv/bin/python scripts/export_run_bundle.py --print-schema
+```
 
 This is the seam the private `phantomclaw-cli` should consume rather than reaching directly into runner internals.

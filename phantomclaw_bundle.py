@@ -18,6 +18,7 @@ from automation_catalog import (
 
 
 BUNDLE_SCHEMA_VERSION = "phantomclaw.run-bundle.v1"
+SCHEMA_PATH = Path(__file__).resolve().parent / "schemas" / "phantomclaw.run-bundle.v1.schema.json"
 
 
 def _report_to_dict(report: Any) -> dict[str, Any]:
@@ -52,7 +53,7 @@ def build_run_bundle(
     if not resolved_platform:
         raise ValueError(f"No platform registered for automation: {automation_name}")
 
-    return {
+    bundle = {
         "schema_version": BUNDLE_SCHEMA_VERSION,
         "generated_at": datetime.now(UTC).isoformat(),
         "source": {
@@ -78,6 +79,8 @@ def build_run_bundle(
         "metrics": metrics,
         "report": report_dict,
     }
+    validate_run_bundle(bundle)
+    return bundle
 
 
 def build_run_bundle_from_path(
@@ -95,3 +98,78 @@ def build_run_bundle_from_path(
         artifact_path=str(report_path),
         search_url=search_url,
     )
+
+
+def run_bundle_schema() -> dict[str, Any]:
+    return json.loads(SCHEMA_PATH.read_text())
+
+
+def validate_run_bundle(bundle: dict[str, Any]) -> None:
+    if bundle.get("schema_version") != BUNDLE_SCHEMA_VERSION:
+        raise ValueError(f"Unsupported schema_version: {bundle.get('schema_version')!r}")
+
+    required_top_level = ("schema_version", "generated_at", "source", "automation", "run", "metrics", "report")
+    for key in required_top_level:
+        if key not in bundle:
+            raise ValueError(f"Missing required top-level bundle field: {key}")
+
+    for section_name, required_fields in (
+        ("source", ("project", "channel")),
+        ("automation", ("name", "label", "platform", "surface")),
+        ("run", ("run_id", "started_at", "status")),
+        (
+            "metrics",
+            (
+                "items_scanned",
+                "items_considered",
+                "actions_total",
+                "likes_count",
+                "reposts_count",
+                "comments_liked_count",
+                "follows_count",
+                "metrics_json",
+            ),
+        ),
+    ):
+        section = bundle.get(section_name)
+        if not isinstance(section, dict):
+            raise ValueError(f"Bundle section must be an object: {section_name}")
+        for field_name in required_fields:
+            if field_name not in section:
+                raise ValueError(f"Missing required field {section_name}.{field_name}")
+
+    if not isinstance(bundle["report"], dict):
+        raise ValueError("Bundle report must be an object")
+
+    run_id = bundle["run"]["run_id"]
+    report_run_id = bundle["report"].get("run_id")
+    if report_run_id != run_id:
+        raise ValueError(f"Run id mismatch between run and report sections: {run_id!r} != {report_run_id!r}")
+
+    for field_name in (
+        "items_scanned",
+        "items_considered",
+        "actions_total",
+        "likes_count",
+        "reposts_count",
+        "comments_liked_count",
+        "follows_count",
+    ):
+        value = bundle["metrics"][field_name]
+        if not isinstance(value, int) or value < 0:
+            raise ValueError(f"Bundle metric must be a non-negative integer: metrics.{field_name}")
+
+    if not isinstance(bundle["metrics"]["metrics_json"], dict):
+        raise ValueError("metrics.metrics_json must be an object")
+
+    for field_name, raw in (
+        ("generated_at", bundle["generated_at"]),
+        ("run.started_at", bundle["run"]["started_at"]),
+        ("run.finished_at", bundle["run"].get("finished_at")),
+    ):
+        if raw is None:
+            continue
+        try:
+            datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError(f"Invalid ISO datetime for {field_name}: {raw!r}") from exc
