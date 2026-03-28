@@ -1,8 +1,8 @@
 import unittest
 
 from automation_analytics import linkedin_company_profile_engagement_metrics, linkedin_sales_community_metrics
-from linkedin_sales_community.models import CommunityRunReport
 from linkedin.company_profile_engagement.models import RunReport
+from linkedin.sales_community_engagement.models import CommunityRunReport
 
 
 class AutomationAnalyticsTests(unittest.TestCase):

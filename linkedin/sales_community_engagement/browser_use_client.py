@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from urllib.parse import parse_qsl, urlparse
 
 
 COLLECTOR_SCRIPT = r"""
@@ -128,6 +129,39 @@ class BrowserUseClient:
 
     def open(self, url: str) -> None:
         self._run("open", url)
+        self._focus_tab_for_url(url)
+
+    def _focus_tab_for_url(self, expected_url: str, max_tabs: int = 12) -> None:
+        if self._page_matches_expected_url(expected_url):
+            return
+        for index in range(max_tabs):
+            try:
+                self._run("switch", str(index))
+            except BrowserUseError as exc:
+                if "Invalid tab index" in str(exc):
+                    break
+                raise
+            if self._page_matches_expected_url(expected_url):
+                return
+
+    def _page_matches_expected_url(self, expected_url: str) -> bool:
+        state = self.get_page_state()
+        current_url = str(state.get("url") or "")
+        if not current_url:
+            return False
+        return self._urls_match(current_url, expected_url)
+
+    @staticmethod
+    def _urls_match(current_url: str, expected_url: str) -> bool:
+        current = urlparse(current_url)
+        expected = urlparse(expected_url)
+        if current.netloc.lower() != expected.netloc.lower():
+            return False
+        if current.path.rstrip("/") != expected.path.rstrip("/"):
+            return False
+        expected_query = dict(parse_qsl(expected.query, keep_blank_values=True))
+        current_query = dict(parse_qsl(current.query, keep_blank_values=True))
+        return all(current_query.get(key) == value for key, value in expected_query.items())
 
     def get_html(self) -> str:
         raw = self._run("get", "html", "--selector", "body")
@@ -136,6 +170,22 @@ class BrowserUseClient:
     def collect_payload(self) -> str:
         raw = self._run("eval", COLLECTOR_SCRIPT)
         return raw.split("result:", 1)[1].strip() if raw.startswith("result:") else raw
+
+    def get_page_state(self) -> dict[str, object]:
+        raw = self._run(
+            "eval",
+            r"""
+(() => {
+  return JSON.stringify({
+    url: window.location.href || "",
+    title: document.title || "",
+  });
+})()
+""",
+        )
+        if raw.startswith("result:"):
+            raw = raw.split("result:", 1)[1].strip()
+        return json.loads(raw)
 
     def click_selector(self, selector: str) -> None:
         self._run("click", selector)

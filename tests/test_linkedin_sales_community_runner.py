@@ -1,11 +1,11 @@
 import unittest
 
-from linkedin_sales_community.runner import parse_args
+from linkedin.sales_community_engagement.runner import parse_args
 
 
 class LinkedInSalesCommunityRunnerTests(unittest.TestCase):
     def test_parse_args_requires_profile_for_live_runs(self) -> None:
-        with self.assertRaisesRegex(SystemExit, "LINKEDIN_SALES_COMMUNITY_PROFILE"):
+        with self.assertRaisesRegex(SystemExit, "LINKEDIN_SALES_COMMUNITY_ENGAGEMENT_PROFILE"):
             parse_args([])
 
     def test_parse_args_allows_dry_run_without_profile(self) -> None:

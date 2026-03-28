@@ -2,9 +2,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from linkedin_sales_community.models import CommunityItem, CommunitySnapshot, CommunityRunReport
-from linkedin_sales_community.runner import resolve_state_index
-from linkedin_sales_community.state import StateStore
+from linkedin.sales_community_engagement.models import CommunityItem, CommunitySnapshot, CommunityRunReport
+from linkedin.sales_community_engagement.runner import resolve_state_index
+from linkedin.sales_community_engagement.state import StateStore
 
 
 FIXTURES = Path("tests/fixtures")

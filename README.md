@@ -25,10 +25,6 @@ This repository is the public automation engine, not the full hosted product sur
 - `linkedin.company_profile_engagement`: LinkedIn search engagement with guarded likes, reposts, comment likes, and company follows
 - `linkedin.sales_community_engagement`: LinkedIn Sales Community engagement with bounded high-signal likes
 
-Legacy internal package names are still present for compatibility:
-
-- `linkedin_sales_community` maps to `linkedin-sales-community-engagement`
-
 ## Quick Start
 
 1. Create a virtual environment and install dependencies.
@@ -71,10 +67,10 @@ LinkedIn Company Profile Engagement:
 - required: `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_SEARCH_URL`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_PROFILE`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_ACTOR`
 - optional: `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_SESSION`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_POST_CAP`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_REPOST_CAP`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_COMMENT_CAP`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_MAX_PASSES`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_FOLLOW_CAP`, `LINKEDIN_COMPANY_PROFILE_ENGAGEMENT_DATABASE_URL`
 
-LinkedIn Sales Community:
+LinkedIn Sales Community Engagement:
 
-- required: `LINKEDIN_SALES_COMMUNITY_PROFILE`
-- optional: `LINKEDIN_SALES_COMMUNITY_URL`, `LINKEDIN_SALES_COMMUNITY_SESSION`, `LINKEDIN_SALES_COMMUNITY_LIKE_CAP`, `LINKEDIN_SALES_COMMUNITY_ANALYTICS_DATABASE_URL`
+- required: `LINKEDIN_SALES_COMMUNITY_ENGAGEMENT_PROFILE`
+- optional: `LINKEDIN_SALES_COMMUNITY_ENGAGEMENT_URL`, `LINKEDIN_SALES_COMMUNITY_ENGAGEMENT_SESSION`, `LINKEDIN_SALES_COMMUNITY_ENGAGEMENT_LIKE_CAP`, `LINKEDIN_SALES_COMMUNITY_ENGAGEMENT_ANALYTICS_DATABASE_URL`
 
 ## Artifacts And State
 
@@ -85,10 +81,10 @@ LinkedIn Company Profile Engagement writes:
 - `artifacts/linkedin-company-profile-engagement/` JSON reports and screenshots
 - `artifacts/linkedin-company-profile-engagement/state.sqlite3` when Postgres is not configured
 
-LinkedIn Sales Community writes:
+LinkedIn Sales Community Engagement writes:
 
-- `artifacts/linkedin-sales-community/` JSON reports
-- `artifacts/linkedin-sales-community/state.sqlite3` when Postgres is not configured
+- `artifacts/linkedin-sales-community-engagement/` JSON reports
+- `artifacts/linkedin-sales-community-engagement/state.sqlite3` when Postgres is not configured
 
 ## Normalized Analytics
 
@@ -126,8 +122,6 @@ The public structure is platform-first:
 
 - `linkedin/company_profile_engagement/`
 - `linkedin/sales_community_engagement/`
-
-The older package names remain as compatibility layers while the project is being generalized and existing users migrate.
 
 Within a platform, `surface` identifies the product area. Current LinkedIn surfaces are:
 
