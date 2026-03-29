@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from linkedin.company_profile_engagement.config import RunnerConfig
 from linkedin.company_profile_engagement.models import AgencyFeedSnapshot, AgencySnapshot, CommentSnapshot, FeedSnapshot, PostSnapshot, RunReport
-from linkedin.company_profile_engagement.runner import process_agency_follows, process_feed
+from linkedin.company_profile_engagement.runner import build_browser_session_name, process_agency_follows, process_feed
 from linkedin.company_profile_engagement.state import StateStore
 
 
@@ -99,6 +99,12 @@ class FakeBrowser:
 
 
 class RunnerTests(unittest.TestCase):
+    def test_build_browser_session_name_uses_run_id_prefix(self) -> None:
+        self.assertEqual(
+            build_browser_session_name("linkedin-company-profile-engagement", "149f04017fc14d62afddacb8c800c921"),
+            "linkedin-company-profile-engagement-149f0401",
+        )
+
     def make_config(self, artifact_dir: Path) -> RunnerConfig:
         return RunnerConfig(
             search_url="https://www.linkedin.com/search/results/content/",

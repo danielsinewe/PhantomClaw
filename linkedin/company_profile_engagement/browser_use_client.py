@@ -246,14 +246,27 @@ class BrowserUseError(RuntimeError):
 
 
 DEFAULT_COMMAND_TIMEOUT_SECONDS = 45.0
+DEFAULT_BROWSER_START_TIMEOUT_SECONDS = 120.0
+COMMAND_TIMEOUT_BUFFER_SECONDS = 30.0
 
 
 class BrowserUseClient:
-    def __init__(self, *, session_name: str, chrome_profile: str, command_timeout_seconds: float | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        session_name: str,
+        chrome_profile: str,
+        command_timeout_seconds: float | None = None,
+        browser_start_timeout_seconds: float | None = None,
+    ) -> None:
         self.session_name = session_name
         self.chrome_profile = chrome_profile
         self.binary = self._resolve_binary()
-        self.command_timeout_seconds = self._resolve_timeout_seconds(command_timeout_seconds)
+        self.browser_start_timeout_seconds = self._resolve_browser_start_timeout_seconds(browser_start_timeout_seconds)
+        self.command_timeout_seconds = self._resolve_timeout_seconds(
+            command_timeout_seconds,
+            min_required=self.browser_start_timeout_seconds + COMMAND_TIMEOUT_BUFFER_SECONDS,
+        )
 
     def _resolve_binary(self) -> str:
         explicit_env = os.getenv("BROWSER_USE_BIN")
@@ -275,11 +288,15 @@ class BrowserUseClient:
 
     def _run(self, *args: str) -> str:
         cmd = [self.binary, "--session", self.session_name, "--profile", self.chrome_profile, *args]
+        env = os.environ.copy()
+        # Keep the subprocess timeout above browser-use's internal BrowserStartEvent timeout.
+        env.setdefault("TIMEOUT_BrowserStartEvent", f"{self.browser_start_timeout_seconds:g}")
         try:
             result = subprocess.run(
                 cmd,
                 check=False,
                 capture_output=True,
+                env=env,
                 text=True,
                 timeout=self.command_timeout_seconds,
             )
@@ -296,20 +313,40 @@ class BrowserUseClient:
         return result.stdout.strip()
 
     @staticmethod
-    def _resolve_timeout_seconds(command_timeout_seconds: float | None) -> float:
+    def _resolve_timeout_seconds(command_timeout_seconds: float | None, *, min_required: float = 0.0) -> float:
         if command_timeout_seconds is None:
             raw = os.getenv("BROWSER_USE_COMMAND_TIMEOUT_SECONDS", "").strip()
             if not raw:
-                return DEFAULT_COMMAND_TIMEOUT_SECONDS
-            try:
-                command_timeout_seconds = float(raw)
-            except ValueError as exc:
-                raise BrowserUseError(
-                    f"Invalid BROWSER_USE_COMMAND_TIMEOUT_SECONDS value: {raw!r}"
-                ) from exc
+                command_timeout_seconds = DEFAULT_COMMAND_TIMEOUT_SECONDS
+            else:
+                try:
+                    command_timeout_seconds = float(raw)
+                except ValueError as exc:
+                    raise BrowserUseError(
+                        f"Invalid BROWSER_USE_COMMAND_TIMEOUT_SECONDS value: {raw!r}"
+                    ) from exc
         if command_timeout_seconds <= 0:
             raise BrowserUseError("BROWSER_USE_COMMAND_TIMEOUT_SECONDS must be greater than zero")
-        return float(command_timeout_seconds)
+        return max(float(command_timeout_seconds), float(min_required))
+
+    @staticmethod
+    def _resolve_browser_start_timeout_seconds(browser_start_timeout_seconds: float | None) -> float:
+        if browser_start_timeout_seconds is None:
+            raw = (
+                os.getenv("BROWSER_USE_BROWSER_START_TIMEOUT_SECONDS", "").strip()
+                or os.getenv("TIMEOUT_BrowserStartEvent", "").strip()
+            )
+            if not raw:
+                return DEFAULT_BROWSER_START_TIMEOUT_SECONDS
+            try:
+                browser_start_timeout_seconds = float(raw)
+            except ValueError as exc:
+                raise BrowserUseError(
+                    f"Invalid browser start timeout value: {raw!r}"
+                ) from exc
+        if browser_start_timeout_seconds <= 0:
+            raise BrowserUseError("Browser start timeout must be greater than zero")
+        return float(browser_start_timeout_seconds)
 
     def open(self, url: str) -> None:
         self._run("open", url)

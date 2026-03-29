@@ -46,6 +46,10 @@ def add_event(report: RunReport, event_type: str, **fields: object) -> None:
     )
 
 
+def build_browser_session_name(base_session_name: str, run_id: str) -> str:
+    return f"{base_session_name}-{run_id[:8]}"
+
+
 def main(argv: list[str] | None = None) -> int:
     config = parse_config(argv)
     config.artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -56,15 +60,17 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     store = StateStore(config.db_path, database_url=config.database_url)
     run_id = uuid.uuid4().hex
+    browser_session_name = build_browser_session_name(config.session_name, run_id)
     started_at = utc_now().isoformat()
     store.close_incomplete_runs()
     report = RunReport(run_id=run_id, started_at=started_at)
     store.start_run(run_id, started_at)
+    add_event(report, "browser_session_allocated", session_name=browser_session_name)
     browser: BrowserUseClient | None = None
 
     try:
         browser = None if config.dry_run else BrowserUseClient(
-            session_name=config.session_name,
+            session_name=browser_session_name,
             chrome_profile=config.chrome_profile,
         )
         snapshot = load_snapshot(config, browser)
@@ -98,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
         if not config.dry_run:
             try:
                 browser = browser or BrowserUseClient(
-                    session_name=config.session_name,
+                    session_name=browser_session_name,
                     chrome_profile=config.chrome_profile,
                 )
                 screenshot_path = config.artifact_dir / f"{run_id}-failure.png"

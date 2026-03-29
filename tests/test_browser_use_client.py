@@ -1,3 +1,4 @@
+import os
 import subprocess
 import unittest
 from unittest.mock import patch
@@ -60,6 +61,7 @@ class BrowserUseClientTests(unittest.TestCase):
         client.binary = "browser-use"
         client.session_name = "session"
         client.chrome_profile = "profile"
+        client.browser_start_timeout_seconds = 60.0
         client.command_timeout_seconds = 12.0
 
         with patch(
@@ -71,6 +73,33 @@ class BrowserUseClientTests(unittest.TestCase):
 
         self.assertIn("timed out after 12s", str(ctx.exception))
         self.assertIn("open https://www.linkedin.com/", str(ctx.exception))
+
+    def test_run_passes_browser_start_timeout_to_subprocess_env(self) -> None:
+        client = BrowserUseClient.__new__(BrowserUseClient)
+        client.binary = "browser-use"
+        client.session_name = "session"
+        client.chrome_profile = "profile"
+        client.browser_start_timeout_seconds = 75.0
+        client.command_timeout_seconds = 120.0
+        seen_env: dict[str, str] = {}
+
+        def fake_run(*args, **kwargs):
+            nonlocal seen_env
+            seen_env = kwargs["env"]
+            return subprocess.CompletedProcess(args=args[0], returncode=0, stdout="ok", stderr="")
+
+        with patch("linkedin.company_profile_engagement.browser_use_client.subprocess.run", side_effect=fake_run):
+            result = client._run("open", "https://www.linkedin.com/")
+
+        self.assertEqual(result, "ok")
+        self.assertEqual(seen_env["TIMEOUT_BrowserStartEvent"], "75")
+
+    def test_init_keeps_command_timeout_above_browser_start_timeout(self) -> None:
+        with patch.object(BrowserUseClient, "_resolve_binary", return_value="browser-use"), patch.dict(os.environ, {}, clear=False):
+            client = BrowserUseClient(session_name="session", chrome_profile="profile")
+
+        self.assertEqual(client.browser_start_timeout_seconds, 120.0)
+        self.assertGreaterEqual(client.command_timeout_seconds, 150.0)
 
 
 if __name__ == "__main__":
