@@ -1,4 +1,6 @@
+import subprocess
 import unittest
+from unittest.mock import patch
 
 from linkedin.sales_community_engagement.browser_use_client import BrowserUseClient, BrowserUseError
 
@@ -37,6 +39,23 @@ class LinkedInSalesCommunityBrowserUseClientTests(unittest.TestCase):
         BrowserUseClient._focus_tab_for_url(client, "https://scommunity.linkedin.com/")
         self.assertEqual(client.index, 1)
         self.assertEqual(client.switches, [0, 1])
+
+    def test_run_raises_browser_use_error_on_timeout(self) -> None:
+        client = BrowserUseClient.__new__(BrowserUseClient)
+        client.binary = "browser-use"
+        client.session_name = "session"
+        client.chrome_profile = "profile"
+        client.command_timeout_seconds = 9.0
+
+        with patch(
+            "linkedin.sales_community_engagement.browser_use_client.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd=["browser-use"], timeout=9.0),
+        ):
+            with self.assertRaises(BrowserUseError) as ctx:
+                client._run("state")
+
+        self.assertIn("timed out after 9s", str(ctx.exception))
+        self.assertIn("state", str(ctx.exception))
 
 
 if __name__ == "__main__":

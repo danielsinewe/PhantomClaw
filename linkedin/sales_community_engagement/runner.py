@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 
 from automation_catalog import LINKEDIN_PLATFORM, LINKEDIN_SALES_COMMUNITY_ENGAGEMENT, LINKEDIN_SALES_COMMUNITY_SURFACE
+from run_lock import RunLockError, acquire_run_lock
 
 if __package__ in {None, ""}:
     import sys
@@ -82,6 +83,11 @@ def parse_args(argv: list[str] | None = None):
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    try:
+        run_lock = acquire_run_lock(args.artifact_dir / ".run.lock")
+    except RunLockError as exc:
+        print(str(exc))
+        return 0
     store = StateStore(args.db_path)
     run_id = uuid.uuid4().hex
     report = CommunityRunReport(run_id=run_id, started_at=utc_now().isoformat())
@@ -171,6 +177,7 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         if browser is not None:
             browser.close()
+        run_lock.release()
 
 
 def finalize(store: StateStore, report: CommunityRunReport, artifact_dir: Path, search_url: str, analytics_database_url: str | None) -> int:

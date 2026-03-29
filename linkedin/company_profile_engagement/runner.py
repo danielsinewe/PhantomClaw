@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 
 from automation_catalog import LINKEDIN_COMPANY_PROFILE_ENGAGEMENT, LINKEDIN_CORE_SURFACE, LINKEDIN_PLATFORM
+from run_lock import RunLockError, acquire_run_lock
 
 if __package__ in {None, ""}:
     import sys
@@ -48,6 +49,11 @@ def add_event(report: RunReport, event_type: str, **fields: object) -> None:
 def main(argv: list[str] | None = None) -> int:
     config = parse_config(argv)
     config.artifact_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        run_lock = acquire_run_lock(config.artifact_dir / ".run.lock")
+    except RunLockError as exc:
+        print(str(exc))
+        return 0
     store = StateStore(config.db_path, database_url=config.database_url)
     run_id = uuid.uuid4().hex
     started_at = utc_now().isoformat()
@@ -103,6 +109,7 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         if browser is not None:
             browser.close()
+        run_lock.release()
 
 
 def load_snapshot(config: RunnerConfig, browser: BrowserUseClient | None) -> FeedSnapshot:

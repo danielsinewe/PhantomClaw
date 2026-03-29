@@ -101,11 +101,15 @@ class BrowserUseError(RuntimeError):
     pass
 
 
+DEFAULT_COMMAND_TIMEOUT_SECONDS = 45.0
+
+
 class BrowserUseClient:
-    def __init__(self, *, session_name: str, chrome_profile: str) -> None:
+    def __init__(self, *, session_name: str, chrome_profile: str, command_timeout_seconds: float | None = None) -> None:
         self.session_name = session_name
         self.chrome_profile = chrome_profile
         self.binary = self._resolve_binary()
+        self.command_timeout_seconds = self._resolve_timeout_seconds(command_timeout_seconds)
 
     def _resolve_binary(self) -> str:
         candidates = [
@@ -122,10 +126,41 @@ class BrowserUseClient:
 
     def _run(self, *args: str) -> str:
         cmd = [self.binary, "--session", self.session_name, "--profile", self.chrome_profile, *args]
-        result = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        try:
+            result = subprocess.run(
+                cmd,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=self.command_timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            suffix = ""
+            detail = (exc.stderr or exc.stdout or "").strip() if isinstance(exc.stderr or exc.stdout or "", str) else ""
+            if detail:
+                suffix = f" ({detail})"
+            raise BrowserUseError(
+                f"browser-use command timed out after {self.command_timeout_seconds:g}s: {' '.join(args)}{suffix}"
+            ) from exc
         if result.returncode != 0:
             raise BrowserUseError(result.stderr.strip() or result.stdout.strip() or "browser-use command failed")
         return result.stdout.strip()
+
+    @staticmethod
+    def _resolve_timeout_seconds(command_timeout_seconds: float | None) -> float:
+        if command_timeout_seconds is None:
+            raw = os.getenv("BROWSER_USE_COMMAND_TIMEOUT_SECONDS", "").strip()
+            if not raw:
+                return DEFAULT_COMMAND_TIMEOUT_SECONDS
+            try:
+                command_timeout_seconds = float(raw)
+            except ValueError as exc:
+                raise BrowserUseError(
+                    f"Invalid BROWSER_USE_COMMAND_TIMEOUT_SECONDS value: {raw!r}"
+                ) from exc
+        if command_timeout_seconds <= 0:
+            raise BrowserUseError("BROWSER_USE_COMMAND_TIMEOUT_SECONDS must be greater than zero")
+        return float(command_timeout_seconds)
 
     def open(self, url: str) -> None:
         self._run("open", url)
