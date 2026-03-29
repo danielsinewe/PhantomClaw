@@ -102,6 +102,28 @@ class PhantomClawBundleTests(unittest.TestCase):
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["properties"]["schema_version"]["const"], BUNDLE_SCHEMA_VERSION)
 
+    def test_export_script_supports_sales_community_fixture(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "sales-community.bundle.json"
+            fixture_path = Path("tests/fixtures/sales_community_report.json")
+
+            exit_code = export_run_bundle_main(
+                [
+                    "--automation-name",
+                    "linkedin-sales-community-engagement",
+                    "--report-path",
+                    str(fixture_path),
+                    "--output",
+                    str(output_path),
+                ]
+            )
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(output_path.read_text())
+            self.assertEqual(payload["automation"]["name"], "linkedin-sales-community-engagement")
+            self.assertEqual(payload["automation"]["surface"], "sales-community")
+            self.assertEqual(payload["metrics"]["actions_total"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

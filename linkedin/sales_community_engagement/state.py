@@ -52,6 +52,28 @@ class StateStore:
         )
         self.conn.commit()
 
+    def close_incomplete_runs(
+        self,
+        *,
+        status: str = "failed",
+        stop_reason: str = "abandoned_started_row_cleanup",
+    ) -> int:
+        cursor = self.conn.execute(
+            """
+            UPDATE runs
+            SET finished_at = started_at,
+                status = ?,
+                stop_reason = CASE
+                  WHEN stop_reason IS NULL OR stop_reason = '' THEN ?
+                  ELSE stop_reason
+                END
+            WHERE status = 'started' AND finished_at IS NULL
+            """,
+            (status, stop_reason),
+        )
+        self.conn.commit()
+        return cursor.rowcount or 0
+
     def finish_run(self, run_id: str, *, finished_at: str, status: str, page_shape_ok: bool, items_scanned: int, items_considered: int, items_liked: int, stop_reason: str | None) -> None:
         self.conn.execute(
             "UPDATE runs SET finished_at=?, status=?, page_shape_ok=?, items_scanned=?, items_considered=?, items_liked=?, stop_reason=? WHERE run_id=?",

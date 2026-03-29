@@ -90,6 +90,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     store = StateStore(args.db_path)
     run_id = uuid.uuid4().hex
+    store.close_incomplete_runs()
     report = CommunityRunReport(run_id=run_id, started_at=utc_now().isoformat())
     store.start_run(run_id, report.started_at)
     browser = None if args.dry_run else BrowserUseClient(session_name=args.session_name, chrome_profile=args.chrome_profile)

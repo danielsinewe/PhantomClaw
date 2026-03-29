@@ -1,0 +1,14 @@
+{
+  "run_id": "fixture-sales-community-run",
+  "started_at": "2026-03-28T09:00:00+00:00",
+  "finished_at": "2026-03-28T09:00:15+00:00",
+  "status": "ok",
+  "page_shape_ok": true,
+  "items_scanned": 12,
+  "items_considered": 4,
+  "items_liked": 1,
+  "skips": [],
+  "events": [],
+  "stop_reason": null,
+  "screenshot_path": null
+}

@@ -7,6 +7,23 @@ from linkedin.company_profile_engagement.state import StateStore
 
 
 class StateStoreTests(unittest.TestCase):
+    def test_close_incomplete_runs_marks_stale_started_rows_failed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = StateStore(Path(temp_dir) / "state.sqlite3")
+            store.start_run("run-stale", "2026-03-24T10:00:00+00:00")
+            updated = store.close_incomplete_runs()
+
+            row = store.conn.execute(
+                "SELECT finished_at, status, stop_reason FROM runs WHERE run_id = ?",
+                ("run-stale",),
+            ).fetchone()
+
+            self.assertEqual(updated, 1)
+            self.assertEqual(row["finished_at"], "2026-03-24T10:00:00+00:00")
+            self.assertEqual(row["status"], "failed")
+            self.assertEqual(row["stop_reason"], "abandoned_started_row_cleanup")
+            store.close()
+
     def test_state_store_tracks_processed_items(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             store = StateStore(Path(temp_dir) / "state.sqlite3")

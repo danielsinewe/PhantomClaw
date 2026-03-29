@@ -57,6 +57,7 @@ def main(argv: list[str] | None = None) -> int:
     store = StateStore(config.db_path, database_url=config.database_url)
     run_id = uuid.uuid4().hex
     started_at = utc_now().isoformat()
+    store.close_incomplete_runs()
     report = RunReport(run_id=run_id, started_at=started_at)
     store.start_run(run_id, started_at)
     browser: BrowserUseClient | None = None

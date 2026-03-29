@@ -31,6 +31,11 @@ jobs:
             --report-path tests/fixtures/company_profile_report.json \
             --output /tmp/phantomclaw-contract-bundle.json
           test -s /tmp/phantomclaw-contract-bundle.json
+          python scripts/export_run_bundle.py \
+            --automation-name linkedin-sales-community-engagement \
+            --report-path tests/fixtures/sales_community_report.json \
+            --output /tmp/phantomclaw-sales-community-contract-bundle.json
+          test -s /tmp/phantomclaw-sales-community-contract-bundle.json
 
   gitleaks:
     runs-on: ubuntu-latest

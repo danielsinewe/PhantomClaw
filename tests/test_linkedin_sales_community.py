@@ -11,6 +11,23 @@ FIXTURES = Path("tests/fixtures")
 
 
 class LinkedInSalesCommunityTests(unittest.TestCase):
+    def test_state_store_closes_incomplete_runs(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            store = StateStore(Path(tmpdir) / "state.sqlite3")
+            store.start_run("run-stale", "2026-03-28T08:00:00+00:00")
+
+            updated = store.close_incomplete_runs()
+            row = store.conn.execute(
+                "SELECT finished_at, status, stop_reason FROM runs WHERE run_id = ?",
+                ("run-stale",),
+            ).fetchone()
+
+            self.assertEqual(updated, 1)
+            self.assertEqual(row["finished_at"], "2026-03-28T08:00:00+00:00")
+            self.assertEqual(row["status"], "failed")
+            self.assertEqual(row["stop_reason"], "abandoned_started_row_cleanup")
+            store.close()
+
     def test_resolve_state_index_matches_label(self) -> None:
         state = "[28]<a />\n\tExplore Onboarding\n[29]<a />\n\tVisit the Sales Assistant Hub"
         self.assertEqual(resolve_state_index(state, "Explore Onboarding"), 28)
