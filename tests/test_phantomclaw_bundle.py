@@ -28,7 +28,7 @@ class PhantomClawBundleTests(unittest.TestCase):
             posts_liked=2,
             posts_reposted=1,
             comments_liked=1,
-            agencies_followed=1,
+            companies_followed=1,
         )
         bundle = build_run_bundle(automation_name="linkedin-company-profile-engagement", report=report)
         self.assertEqual(bundle["schema_version"], BUNDLE_SCHEMA_VERSION)
@@ -36,6 +36,44 @@ class PhantomClawBundleTests(unittest.TestCase):
         self.assertEqual(bundle["automation"]["platform"], "linkedin")
         self.assertEqual(bundle["automation"]["surface"], "core")
         self.assertEqual(bundle["metrics"]["actions_total"], 5)
+        self.assertEqual(bundle["report"]["companies_followed"], 1)
+
+    def test_build_run_bundle_surfaces_profile_and_action_events(self) -> None:
+        report = RunReport(
+            run_id="run-action-events",
+            started_at="2026-03-28T09:00:00+00:00",
+            status="ok",
+            profile_name="TrustOutreach",
+            actor_verified=True,
+            search_shape_ok=True,
+            posts_scanned=5,
+        )
+        report.events.extend(
+            [
+                {"ts": "2026-03-28T09:00:01+00:00", "type": "snapshot_loaded", "pass_index": 0},
+                {
+                    "ts": "2026-03-28T09:00:02+00:00",
+                    "type": "post_liked",
+                    "post_id": "urn:li:activity:1001",
+                    "post_url": "https://www.linkedin.com/feed/update/urn:li:activity:1001",
+                    "selector": "selector:like",
+                },
+                {
+                    "ts": "2026-03-28T09:00:03+00:00",
+                    "type": "company_followed",
+                    "company_id": "49127922",
+                    "company_url": "https://www.linkedin.com/company/49127922/",
+                    "name": "Senseven Health",
+                    "selector": "company:0:follow",
+                },
+            ]
+        )
+
+        bundle = build_run_bundle(automation_name="linkedin-company-profile-engagement", report=report)
+
+        self.assertEqual(bundle["run"]["profile_name"], "TrustOutreach")
+        self.assertEqual([event["type"] for event in bundle["run"]["action_events"]], ["post_liked", "company_followed"])
+        self.assertEqual([event["type"] for event in bundle["report"]["events"] if event.get("type") in {"post_liked", "company_followed"}], ["post_liked", "company_followed"])
 
     def test_build_run_bundle_from_path_reads_report_json(self) -> None:
         with TemporaryDirectory() as tmpdir:

@@ -53,6 +53,11 @@
         "finished_at": { "type": ["string", "null"] },
         "status": { "type": "string" },
         "stop_reason": { "type": ["string", "null"] },
+        "profile_name": { "type": ["string", "null"] },
+        "action_events": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
         "screenshot_path": { "type": ["string", "null"] }
       }
     },

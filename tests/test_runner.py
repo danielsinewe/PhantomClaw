@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from linkedin.company_profile_engagement.config import RunnerConfig
-from linkedin.company_profile_engagement.models import AgencyFeedSnapshot, AgencySnapshot, CommentSnapshot, FeedSnapshot, PostSnapshot, RunReport
+from linkedin.company_profile_engagement.models import CompanyFeedSnapshot, CompanySnapshot, CommentSnapshot, FeedSnapshot, PostSnapshot, RunReport
 from linkedin.company_profile_engagement.runner import build_browser_session_name, process_agency_follows, process_feed
 from linkedin.company_profile_engagement.state import StateStore
 
@@ -43,6 +43,7 @@ def make_snapshot(*post_ids: str, search_shape_ok: bool = True) -> FeedSnapshot:
 class FakeBrowser:
     def __init__(self) -> None:
         self.clicks: list[str] = []
+        self.actor_requests: list[str] = []
         self.scrolls: list[int] = []
         self.follow_scrolls: list[int] = []
         self.follow_tabs: list[str] = []
@@ -64,6 +65,7 @@ class FakeBrowser:
         self.opens.append(url)
 
     def ensure_actor(self, actor_name: str) -> bool:
+        self.actor_requests.append(actor_name)
         return self.ensure_actor_result and actor_name == "Example Company"
 
     def get_page_state(self) -> dict[str, object]:
@@ -139,7 +141,7 @@ class RunnerTests(unittest.TestCase):
             first = make_snapshot("p1", "p2", "p3")
             second = make_snapshot("p3", "p4", "p5")
 
-            with patch("linkedin.company_profile_engagement.runner.capture_current_snapshot", side_effect=[second, second, second]):
+            with patch("linkedin.company_profile_engagement.runner.capture_current_snapshot", return_value=second):
                 process_feed(first, store, report, browser, self.make_config(artifact_dir))
 
             self.assertEqual(report.status, "started")
@@ -161,30 +163,30 @@ class RunnerTests(unittest.TestCase):
             config.repost_cap = 0
             config.comment_cap = 0
             config.follow_cap = 2
-            first = AgencyFeedSnapshot(
+            first = CompanyFeedSnapshot(
                 page_shape_ok=True,
                 challenge_signals=[],
                 following_count=0,
                 active_tab="Recommended",
-                agencies=[
-                    AgencySnapshot(
+                companies=[
+                    CompanySnapshot(
                         company_id="49127922",
                         company_url="https://www.linkedin.com/company/49127922/",
                         name="Senseven Health",
                         subtitle="Mental Health Care • Berlin",
                         followers_text="626 followers",
                         already_following=False,
-                        follow_selector="agency:0:follow",
+                        follow_selector="company:0:follow",
                     )
                 ],
             )
-            confirmed = AgencyFeedSnapshot(
+            confirmed = CompanyFeedSnapshot(
                 page_shape_ok=True,
                 challenge_signals=[],
                 following_count=1,
                 active_tab="Recommended",
-                agencies=[
-                    AgencySnapshot(
+                companies=[
+                    CompanySnapshot(
                         company_id="49127922",
                         company_url="https://www.linkedin.com/company/49127922/",
                         name="Senseven Health",
@@ -199,9 +201,9 @@ class RunnerTests(unittest.TestCase):
             with patch("linkedin.company_profile_engagement.runner.capture_agency_snapshot", side_effect=[first, confirmed, confirmed, confirmed]):
                 process_agency_follows(store, report, browser, config)
 
-            self.assertEqual(report.agencies_scanned, 1)
-            self.assertEqual(report.agencies_followed, 1)
-            self.assertIn("agency:0:follow", browser.clicks)
+            self.assertEqual(report.companies_scanned, 1)
+            self.assertEqual(report.companies_followed, 1)
+            self.assertIn("company:0:follow", browser.clicks)
             agency_row = store.conn.execute("SELECT followed FROM agencies WHERE company_id = ?", ("49127922",)).fetchone()
             observation_row = store.conn.execute(
                 "SELECT action_taken FROM agency_observations WHERE run_id = ? AND company_id = ?",
@@ -218,35 +220,35 @@ class RunnerTests(unittest.TestCase):
             browser = FakeBrowser()
             report = RunReport(run_id="run-follow-count", started_at="2026-03-26T08:00:00+00:00")
             config = self.make_config(artifact_dir)
-            first = AgencyFeedSnapshot(
+            first = CompanyFeedSnapshot(
                 page_shape_ok=True,
                 challenge_signals=[],
                 following_count=0,
                 active_tab="Recommended",
-                agencies=[
-                    AgencySnapshot(
+                companies=[
+                    CompanySnapshot(
                         company_id="104602195",
                         company_url="https://www.linkedin.com/company/104602195/",
                         name="Tabula",
                         subtitle="Software Development • Berlin",
                         followers_text="2,392 followers",
                         already_following=False,
-                        follow_selector="agency:0:follow",
+                        follow_selector="company:0:follow",
                     )
                 ],
             )
-            switched = AgencyFeedSnapshot(
+            switched = CompanyFeedSnapshot(
                 page_shape_ok=True,
                 challenge_signals=[],
                 following_count=1,
                 active_tab="Following (1)",
-                agencies=[],
+                companies=[],
             )
 
             with patch("linkedin.company_profile_engagement.runner.capture_agency_snapshot", side_effect=[first, switched, switched, switched]):
                 process_agency_follows(store, report, browser, config)
 
-            self.assertEqual(report.agencies_followed, 1)
+            self.assertEqual(report.companies_followed, 1)
             agency_row = store.conn.execute("SELECT followed FROM agencies WHERE company_id = ?", ("104602195",)).fetchone()
             self.assertEqual(agency_row["followed"], 1)
             store.close()
@@ -258,20 +260,20 @@ class RunnerTests(unittest.TestCase):
             browser = FakeBrowser()
             report = RunReport(run_id="run-follow-drift", started_at="2026-03-26T08:00:00+00:00")
             config = self.make_config(artifact_dir)
-            invalid = AgencyFeedSnapshot(
+            invalid = CompanyFeedSnapshot(
                 page_shape_ok=False,
                 challenge_signals=[],
                 following_count=None,
                 active_tab=None,
-                agencies=[],
+                companies=[],
             )
 
             with patch("linkedin.company_profile_engagement.runner.capture_agency_snapshot", return_value=invalid):
                 process_agency_follows(store, report, browser, config)
 
             self.assertEqual(report.status, "stopped")
-            self.assertEqual(report.stop_reason, "agency_follow_page_shape_changed")
-            self.assertEqual(report.agencies_followed, 0)
+            self.assertEqual(report.stop_reason, "company_follow_page_shape_changed")
+            self.assertEqual(report.companies_followed, 0)
             store.close()
 
     def test_process_feed_prefers_load_more_before_scroll(self) -> None:
@@ -288,7 +290,7 @@ class RunnerTests(unittest.TestCase):
             first = make_snapshot("p1", "p2", "p3")
             second = make_snapshot("p3", "p4")
 
-            with patch("linkedin.company_profile_engagement.runner.capture_current_snapshot", side_effect=[second, second, second]):
+            with patch("linkedin.company_profile_engagement.runner.capture_current_snapshot", return_value=second):
                 process_feed(first, store, report, browser, self.make_config(artifact_dir))
 
             self.assertEqual(report.posts_scanned, 4)
@@ -332,13 +334,48 @@ class RunnerTests(unittest.TestCase):
             config.repost_cap = 1
             config.max_passes = 0
 
-            process_feed(first, store, report, browser, config)
+            with patch("linkedin.company_profile_engagement.runner.capture_current_snapshot", return_value=first):
+                process_feed(first, store, report, browser, config)
 
             self.assertEqual(report.posts_liked, 0)
             self.assertEqual(report.posts_reposted, 1)
             self.assertEqual(browser.clicks, ["selector:p1:repost"])
+            self.assertEqual(browser.actor_requests, ["Example Company"])
             self.assertTrue(store.post_reposted("p1"))
             self.assertFalse(store.post_reposted("p2"))
+            store.close()
+
+    def test_process_feed_stops_when_repost_actor_cannot_be_verified(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            artifact_dir = Path(tmpdir)
+            store = StateStore(artifact_dir / "state.sqlite3")
+            timestamp = "2026-03-30T15:00:00+00:00"
+            browser = FakeBrowser()
+            report = RunReport(run_id="run-repost-actor-mismatch", started_at=timestamp)
+            first = make_snapshot("p1")
+            config = self.make_config(artifact_dir)
+            config.post_cap = 0
+            config.repost_cap = 1
+            config.max_passes = 0
+
+            bad_refresh = FeedSnapshot(
+                actor_name="Daniel Sinewe",
+                actor_verified=False,
+                search_shape_ok=True,
+                search_markers=["keyword:opportunities", "content-view", "latest-sort", "photo-filter", "org-filter"],
+                challenge_signals=[],
+                posts=[make_post("p1")],
+            )
+
+            with patch("linkedin.company_profile_engagement.runner.capture_current_snapshot", return_value=bad_refresh):
+                process_feed(first, store, report, browser, config)
+
+            self.assertEqual(report.status, "stopped")
+            self.assertEqual(report.stop_reason, "actor_mismatch")
+            self.assertEqual(report.posts_reposted, 0)
+            self.assertEqual(browser.clicks, [])
+            self.assertEqual(browser.actor_requests, ["Example Company"])
+            self.assertFalse(store.post_reposted("p1"))
             store.close()
 
     def test_process_feed_visits_post_url_for_unprocessed_comments(self) -> None:
@@ -359,6 +396,7 @@ class RunnerTests(unittest.TestCase):
             first = make_snapshot("p1")
             config = self.make_config(artifact_dir)
             config.comment_cap = 12
+            config.repost_cap = 0
             config.max_passes = 0
             detail = FeedSnapshot(
                 actor_name="Example Company",
@@ -421,6 +459,7 @@ class RunnerTests(unittest.TestCase):
             first = make_snapshot("p1")
             config = self.make_config(artifact_dir)
             config.comment_cap = 12
+            config.repost_cap = 0
             config.max_passes = 0
             detail = FeedSnapshot(
                 actor_name=None,
@@ -466,6 +505,7 @@ class RunnerTests(unittest.TestCase):
             first = make_snapshot("p1")
             config = self.make_config(artifact_dir)
             config.comment_cap = 12
+            config.repost_cap = 0
             config.max_passes = 0
             detail = FeedSnapshot(
                 actor_name=None,
@@ -535,6 +575,7 @@ class RunnerTests(unittest.TestCase):
             first = make_snapshot("p1")
             config = self.make_config(artifact_dir)
             config.comment_cap = 12
+            config.repost_cap = 0
             config.max_passes = 0
 
             process_feed(first, store, report, browser, config)
@@ -555,6 +596,7 @@ class RunnerTests(unittest.TestCase):
             first = make_snapshot("p1")
             config = self.make_config(artifact_dir)
             config.comment_cap = 12
+            config.repost_cap = 0
             config.max_passes = 0
             expanded = make_snapshot("p1")
             loaded = FeedSnapshot(
@@ -608,6 +650,7 @@ class RunnerTests(unittest.TestCase):
             report = RunReport(run_id="run-actor-recheck", started_at=timestamp)
             config = self.make_config(artifact_dir)
             config.comment_cap = 12
+            config.repost_cap = 0
             config.max_passes = 0
             first = FeedSnapshot(
                 actor_name="Example Company",

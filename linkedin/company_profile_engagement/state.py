@@ -4,6 +4,8 @@ import json
 import sqlite3
 from pathlib import Path
 
+from automation_analytics import normalize_report_payload
+
 
 SQLITE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
@@ -15,6 +17,8 @@ CREATE TABLE IF NOT EXISTS runs (
   posts_scanned INTEGER NOT NULL DEFAULT 0,
   posts_liked INTEGER NOT NULL DEFAULT 0,
   posts_reposted INTEGER NOT NULL DEFAULT 0,
+  companies_scanned INTEGER NOT NULL DEFAULT 0,
+  companies_followed INTEGER NOT NULL DEFAULT 0,
   comments_liked INTEGER NOT NULL DEFAULT 0,
   agencies_scanned INTEGER NOT NULL DEFAULT 0,
   agencies_followed INTEGER NOT NULL DEFAULT 0,
@@ -145,6 +149,8 @@ CREATE TABLE IF NOT EXISTS runs (
   posts_scanned INTEGER NOT NULL DEFAULT 0,
   posts_liked INTEGER NOT NULL DEFAULT 0,
   posts_reposted INTEGER NOT NULL DEFAULT 0,
+  companies_scanned INTEGER NOT NULL DEFAULT 0,
+  companies_followed INTEGER NOT NULL DEFAULT 0,
   comments_liked INTEGER NOT NULL DEFAULT 0,
   agencies_scanned INTEGER NOT NULL DEFAULT 0,
   agencies_followed INTEGER NOT NULL DEFAULT 0,
@@ -277,6 +283,8 @@ class StateStore:
             self.conn = psycopg.connect(database_url, row_factory=dict_row)
             self.conn.execute(POSTGRES_SCHEMA)
             self.conn.execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS posts_reposted INTEGER NOT NULL DEFAULT 0")
+            self.conn.execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS companies_scanned INTEGER NOT NULL DEFAULT 0")
+            self.conn.execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS companies_followed INTEGER NOT NULL DEFAULT 0")
             self.conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS post_url TEXT")
             self.conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS reposted BOOLEAN NOT NULL DEFAULT FALSE")
             self.conn.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS reposted_by_actor BOOLEAN NOT NULL DEFAULT FALSE")
@@ -293,6 +301,8 @@ class StateStore:
             self.conn.row_factory = sqlite3.Row
             self.conn.executescript(SQLITE_SCHEMA)
             self._ensure_sqlite_column("runs", "posts_reposted", "INTEGER NOT NULL DEFAULT 0")
+            self._ensure_sqlite_column("runs", "companies_scanned", "INTEGER NOT NULL DEFAULT 0")
+            self._ensure_sqlite_column("runs", "companies_followed", "INTEGER NOT NULL DEFAULT 0")
             self._ensure_sqlite_column("runs", "agencies_scanned", "INTEGER NOT NULL DEFAULT 0")
             self._ensure_sqlite_column("runs", "agencies_followed", "INTEGER NOT NULL DEFAULT 0")
             self._ensure_sqlite_column("posts", "post_url", "TEXT")
@@ -360,15 +370,20 @@ class StateStore:
         posts_liked: int,
         posts_reposted: int,
         comments_liked: int,
-        agencies_scanned: int,
-        agencies_followed: int,
-        stop_reason: str | None,
+        companies_scanned: int | None = None,
+        companies_followed: int | None = None,
+        agencies_scanned: int | None = None,
+        agencies_followed: int | None = None,
+        stop_reason: str | None = None,
     ) -> None:
+        resolved_companies_scanned = companies_scanned if companies_scanned is not None else agencies_scanned or 0
+        resolved_companies_followed = companies_followed if companies_followed is not None else agencies_followed or 0
         self.conn.execute(
             f"""
             UPDATE runs
             SET finished_at = {self.param}, status = {self.param}, actor_verified = {self.param},
                 posts_scanned = {self.param}, posts_liked = {self.param}, posts_reposted = {self.param},
+                companies_scanned = {self.param}, companies_followed = {self.param},
                 comments_liked = {self.param}, agencies_scanned = {self.param}, agencies_followed = {self.param}, stop_reason = {self.param}
             WHERE run_id = {self.param}
             """,
@@ -379,9 +394,11 @@ class StateStore:
                 posts_scanned,
                 posts_liked,
                 posts_reposted,
+                resolved_companies_scanned,
+                resolved_companies_followed,
                 comments_liked,
-                agencies_scanned,
-                agencies_followed,
+                resolved_companies_scanned,
+                resolved_companies_followed,
                 stop_reason,
                 run_id,
             ),
@@ -575,6 +592,11 @@ class StateStore:
         self.conn.commit()
 
     def record_run_report(self, run_id: str, search_url: str, artifact_path: str, report) -> None:
+        report_dict = report.to_dict() if hasattr(report, "to_dict") else report
+        normalized_report = normalize_report_payload(report_dict)
+        screenshot_path = getattr(report, "screenshot_path", None)
+        if screenshot_path is None and isinstance(report_dict, dict):
+            screenshot_path = report_dict.get("screenshot_path")
         self.conn.execute(
             f"""
             INSERT INTO run_reports (run_id, search_url, artifact_path, screenshot_path, report_json)
@@ -589,13 +611,13 @@ class StateStore:
                 run_id,
                 search_url,
                 artifact_path,
-                report.screenshot_path,
-                json.dumps(report.to_dict(), sort_keys=True),
+                screenshot_path,
+                json.dumps(normalized_report, sort_keys=True),
             ),
         )
         self.conn.commit()
 
-    def upsert_agency(
+    def upsert_company(
         self,
         company_id: str,
         timestamp: str,
@@ -667,14 +689,40 @@ class StateStore:
             )
         self.conn.commit()
 
-    def agency_followed(self, company_id: str) -> bool:
+    def upsert_agency(
+        self,
+        company_id: str,
+        timestamp: str,
+        *,
+        company_url: str,
+        name: str,
+        subtitle: str | None,
+        followers_text: str | None,
+        followed: bool,
+        followed_at: str | None = None,
+    ) -> None:
+        self.upsert_company(
+            company_id,
+            timestamp,
+            company_url=company_url,
+            name=name,
+            subtitle=subtitle,
+            followers_text=followers_text,
+            followed=followed,
+            followed_at=followed_at,
+        )
+
+    def company_followed(self, company_id: str) -> bool:
         row = self.conn.execute(
             f"SELECT followed FROM agencies WHERE company_id = {self.param}",
             (company_id,),
         ).fetchone()
         return bool(row and row["followed"])
 
-    def record_agency_snapshot(self, run_id: str, pass_index: int, snapshot) -> None:
+    def agency_followed(self, company_id: str) -> bool:
+        return self.company_followed(company_id)
+
+    def record_company_snapshot(self, run_id: str, pass_index: int, snapshot) -> None:
         self.conn.execute(
             f"""
             INSERT INTO agency_snapshots (
@@ -697,18 +745,21 @@ class StateStore:
                 snapshot.following_count,
                 snapshot.active_tab,
                 json.dumps(snapshot.challenge_signals, sort_keys=True),
-                len(snapshot.agencies),
+                len(snapshot.companies),
                 json.dumps(snapshot.to_dict(), sort_keys=True),
             ),
         )
         self.conn.commit()
 
-    def record_agency_observation(
+    def record_agency_snapshot(self, run_id: str, pass_index: int, snapshot) -> None:
+        self.record_company_snapshot(run_id, pass_index, snapshot)
+
+    def record_company_observation(
         self,
         run_id: str,
         pass_index: int,
         position_index: int,
-        agency,
+        company,
         *,
         action_taken: str | None,
     ) -> None:
@@ -733,17 +784,34 @@ class StateStore:
                 run_id,
                 pass_index,
                 position_index,
-                agency.company_id,
-                agency.company_url,
-                agency.name,
-                agency.subtitle,
-                agency.followers_text,
-                self._bool_value(agency.already_following),
-                agency.follow_selector,
+                company.company_id,
+                company.company_url,
+                company.name,
+                company.subtitle,
+                company.followers_text,
+                self._bool_value(company.already_following),
+                company.follow_selector,
                 action_taken,
             ),
         )
         self.conn.commit()
+
+    def record_agency_observation(
+        self,
+        run_id: str,
+        pass_index: int,
+        position_index: int,
+        agency,
+        *,
+        action_taken: str | None,
+    ) -> None:
+        self.record_company_observation(
+            run_id,
+            pass_index,
+            position_index,
+            agency,
+            action_taken=action_taken,
+        )
 
     def post_processed(self, post_id: str) -> bool:
         row = self.conn.execute(

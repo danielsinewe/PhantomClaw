@@ -2,7 +2,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from linkedin.company_profile_engagement.models import AgencyFeedSnapshot, AgencySnapshot, CommentSnapshot, FeedSnapshot, PostSnapshot, RunReport
+from linkedin.company_profile_engagement.models import CompanyFeedSnapshot, CompanySnapshot, CommentSnapshot, FeedSnapshot, PostSnapshot, RunReport
 from linkedin.company_profile_engagement.state import StateStore
 
 
@@ -47,8 +47,8 @@ class StateStoreTests(unittest.TestCase):
                 posts_liked=1,
                 posts_reposted=0,
                 comments_liked=1,
-                agencies_scanned=0,
-                agencies_followed=0,
+                companies_scanned=0,
+                companies_followed=0,
                 stop_reason=None,
             )
             store.close()
@@ -119,27 +119,27 @@ class StateStoreTests(unittest.TestCase):
             self.assertEqual(report_row["artifact_path"], "/tmp/run-2.json")
             store.close()
 
-    def test_state_store_records_agency_snapshots_and_observations(self) -> None:
+    def test_state_store_records_company_snapshots_and_observations(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             store = StateStore(Path(temp_dir) / "state.sqlite3")
-            snapshot = AgencyFeedSnapshot(
+            snapshot = CompanyFeedSnapshot(
                 page_shape_ok=True,
                 challenge_signals=[],
                 following_count=1,
                 active_tab="Recommended",
-                agencies=[
-                    AgencySnapshot(
+                companies=[
+                    CompanySnapshot(
                         company_id="49127922",
                         company_url="https://www.linkedin.com/company/49127922/",
                         name="Senseven Health",
                         subtitle="Mental Health Care • Berlin",
                         followers_text="626 followers",
                         already_following=False,
-                        follow_selector="agency:0:follow",
+                        follow_selector="company:0:follow",
                     )
                 ],
             )
-            store.upsert_agency(
+            store.upsert_company(
                 "49127922",
                 "2026-03-26T08:00:00+00:00",
                 company_url="https://www.linkedin.com/company/49127922/",
@@ -149,8 +149,8 @@ class StateStoreTests(unittest.TestCase):
                 followed=True,
                 followed_at="2026-03-26T08:00:05+00:00",
             )
-            store.record_agency_snapshot("run-3", 0, snapshot)
-            store.record_agency_observation("run-3", 0, 0, snapshot.agencies[0], action_taken="followed")
+            store.record_company_snapshot("run-3", 0, snapshot)
+            store.record_company_observation("run-3", 0, 0, snapshot.companies[0], action_taken="followed")
 
             snapshot_row = store.conn.execute(
                 "SELECT agencies_count, following_count FROM agency_snapshots WHERE run_id = ? AND pass_index = ?",

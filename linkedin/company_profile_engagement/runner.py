@@ -16,17 +16,27 @@ if __package__ in {None, ""}:
     if str(PACKAGE_ROOT) not in sys.path:
         sys.path.insert(0, str(PACKAGE_ROOT))
 
-    from automation_analytics import linkedin_company_profile_engagement_metrics, upsert_automation_run
+    from automation_analytics import (
+        extract_post_excerpt,
+        extract_post_target_name,
+        linkedin_company_profile_engagement_metrics,
+        upsert_automation_run,
+    )
     from linkedin.company_profile_engagement.browser_use_client import BrowserUseClient
     from linkedin.company_profile_engagement.config import RunnerConfig, parse_config
-    from linkedin.company_profile_engagement.models import AgencyFeedSnapshot, AgencySnapshot, FeedSnapshot, PostSnapshot, RunReport, utc_now
+    from linkedin.company_profile_engagement.models import CompanyFeedSnapshot, CompanySnapshot, FeedSnapshot, PostSnapshot, RunReport, utc_now
     from linkedin.company_profile_engagement.parser import parse_browser_payload, parse_feed_html
     from linkedin.company_profile_engagement.state import StateStore
 else:
-    from automation_analytics import linkedin_company_profile_engagement_metrics, upsert_automation_run
+    from automation_analytics import (
+        extract_post_excerpt,
+        extract_post_target_name,
+        linkedin_company_profile_engagement_metrics,
+        upsert_automation_run,
+    )
     from .browser_use_client import BrowserUseClient
     from .config import RunnerConfig, parse_config
-    from .models import AgencyFeedSnapshot, AgencySnapshot, FeedSnapshot, PostSnapshot, RunReport, utc_now
+    from .models import CompanyFeedSnapshot, CompanySnapshot, FeedSnapshot, PostSnapshot, RunReport, utc_now
     from .parser import parse_browser_payload, parse_feed_html
     from .state import StateStore
 
@@ -64,6 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     started_at = utc_now().isoformat()
     store.close_incomplete_runs()
     report = RunReport(run_id=run_id, started_at=started_at)
+    report.profile_name = config.actor_name
     store.start_run(run_id, started_at)
     add_event(report, "browser_session_allocated", session_name=browser_session_name)
     browser: BrowserUseClient | None = None
@@ -92,8 +103,8 @@ def main(argv: list[str] | None = None) -> int:
             posts_liked=report.posts_liked,
             posts_reposted=report.posts_reposted,
             comments_liked=report.comments_liked,
-            agencies_scanned=report.agencies_scanned,
-            agencies_followed=report.agencies_followed,
+            companies_scanned=report.companies_scanned,
+            companies_followed=report.companies_followed,
         )
         return finalize(store, report, config.artifact_dir, search_url=config.search_url, analytics_database_url=config.analytics_database_url)
     except Exception as exc:
@@ -174,11 +185,32 @@ def reconfirm_feed_actor(
     return refreshed
 
 
-def capture_agency_snapshot(browser: BrowserUseClient) -> AgencyFeedSnapshot:
+def require_feed_actor_for_action(
+    browser: BrowserUseClient,
+    config: RunnerConfig,
+    report: RunReport,
+    *,
+    context: str,
+) -> FeedSnapshot | None:
+    add_event(report, "actor_recheck_attempt", context=context)
+    browser.ensure_actor(config.actor_name)
+    browser.sleep(0.8)
+    refreshed = capture_current_snapshot(browser, config.actor_name)
+    if refreshed.actor_verified:
+        refreshed.actor_name = config.actor_name
+        add_event(report, "actor_recheck_completed", context=context, recovered=True)
+    else:
+        add_event(report, "actor_recheck_completed", context=context, recovered=False, actor=refreshed.actor_name)
+    if stop_for_invalid_snapshot(report, refreshed):
+        return None
+    return refreshed
+
+
+def capture_agency_snapshot(browser: BrowserUseClient) -> CompanyFeedSnapshot:
     raw = browser.collect_follow_payload()
     payload = json.loads(raw)
-    agencies = [
-        AgencySnapshot(
+    companies = [
+        CompanySnapshot(
             company_id=str(item["company_id"]),
             company_url=str(item["company_url"]),
             name=str(item["name"]),
@@ -187,15 +219,15 @@ def capture_agency_snapshot(browser: BrowserUseClient) -> AgencyFeedSnapshot:
             already_following=bool(item.get("already_following")),
             follow_selector=item.get("follow_selector"),
         )
-        for item in payload.get("agencies", [])
+        for item in payload.get("companies") or payload.get("agencies", [])
     ]
     following_count = payload.get("following_count")
-    return AgencyFeedSnapshot(
+    return CompanyFeedSnapshot(
         page_shape_ok=bool(payload.get("page_shape_ok")),
         challenge_signals=list(payload.get("challenge_signals", [])),
         following_count=int(following_count) if following_count is not None else None,
         active_tab=payload.get("active_tab"),
-        agencies=agencies,
+        companies=companies,
     )
 
 
@@ -233,18 +265,18 @@ def stop_for_invalid_detail_snapshot(report: RunReport, snapshot: FeedSnapshot) 
     return False
 
 
-def stop_for_invalid_agency_snapshot(report: RunReport, snapshot: AgencyFeedSnapshot) -> bool:
+def stop_for_invalid_agency_snapshot(report: RunReport, snapshot: CompanyFeedSnapshot) -> bool:
     if snapshot.challenge_signals:
         report.status = "stopped"
-        report.stop_reason = "anti_automation_challenge"
-        report.skips.append({"reason": "agency_follow_challenge_signals", "signals": snapshot.challenge_signals})
-        add_event(report, "run_stopped", reason="anti_automation_challenge", signals=snapshot.challenge_signals)
+        report.stop_reason = "company_follow_challenge_signals"
+        report.skips.append({"reason": "company_follow_challenge_signals", "signals": snapshot.challenge_signals})
+        add_event(report, "run_stopped", reason="company_follow_challenge_signals", signals=snapshot.challenge_signals)
         return True
     if not snapshot.page_shape_ok:
         report.status = "stopped"
-        report.stop_reason = "agency_follow_page_shape_changed"
-        report.skips.append({"reason": "agency_follow_page_shape_changed", "active_tab": snapshot.active_tab})
-        add_event(report, "run_stopped", reason="agency_follow_page_shape_changed", active_tab=snapshot.active_tab)
+        report.stop_reason = "company_follow_page_shape_changed"
+        report.skips.append({"reason": "company_follow_page_shape_changed", "active_tab": snapshot.active_tab})
+        add_event(report, "run_stopped", reason="company_follow_page_shape_changed", active_tab=snapshot.active_tab)
         return True
     return False
 
@@ -344,6 +376,8 @@ def process_visible_posts(
 ) -> tuple[int, int, int]:
     now = utc_now().isoformat()
     for position_index, post in enumerate(posts):
+        target_name = extract_post_target_name(post.text)
+        target_excerpt = extract_post_excerpt(post.text)
         add_event(report, "post_seen", post_id=post.post_id, sponsored=post.sponsored, already_liked=post.already_liked)
         if post.sponsored:
             report.skips.append({"post_id": post.post_id, "reason": "sponsored"})
@@ -398,7 +432,15 @@ def process_visible_posts(
                     reposted_by_actor=post_reposted,
                 )
                 posts_remaining -= 1
-                add_event(report, "post_liked", post_id=post.post_id)
+                add_event(
+                    report,
+                    "post_liked",
+                    post_id=post.post_id,
+                    post_url=post.post_url,
+                    target_name=target_name,
+                    target_excerpt=target_excerpt,
+                    selector=post.like_selector,
+                )
             else:
                 report.skips.append({"post_id": post.post_id, "reason": "missing_like_selector"})
                 add_event(report, "post_skipped", post_id=post.post_id, reason="missing_like_selector")
@@ -427,6 +469,12 @@ def process_visible_posts(
             if browser is not None and post.repost_selector:
                 add_event(report, "post_repost_attempt", post_id=post.post_id, selector=post.repost_selector)
                 try:
+                    refreshed = require_feed_actor_for_action(browser, config, report, context="post_repost")
+                    if refreshed is None:
+                        return posts_remaining, reposts_remaining, comments_remaining
+                    refreshed_post = next((item for item in refreshed.posts if item.post_id == post.post_id), None)
+                    if refreshed_post is not None:
+                        post = refreshed_post
                     browser.click_selector(post.repost_selector)
                     jitter_sleep(browser, 0.8, 1.6)
                     report.posts_reposted += 1
@@ -440,7 +488,15 @@ def process_visible_posts(
                         reposted=True,
                         reposted_by_actor=True,
                     )
-                    add_event(report, "post_reposted", post_id=post.post_id)
+                    add_event(
+                        report,
+                    "post_reposted",
+                    post_id=post.post_id,
+                    post_url=post.post_url,
+                    target_name=target_name,
+                    target_excerpt=target_excerpt,
+                    selector=post.repost_selector,
+                )
                 except Exception as exc:
                     report.skips.append({"post_id": post.post_id, "reason": "repost_failed", "message": str(exc)})
                     add_event(report, "post_skipped", post_id=post.post_id, reason="repost_failed", message=str(exc))
@@ -502,7 +558,16 @@ def process_visible_posts(
                 report.comments_liked += 1
                 comments_remaining -= 1
                 store.upsert_comment(comment.comment_id, post.post_id, comment.parent_comment_id, now, liked=True)
-                add_event(report, "comment_liked", post_id=post.post_id, comment_id=comment.comment_id)
+                add_event(
+                    report,
+                    "comment_liked",
+                    post_id=post.post_id,
+                    post_url=post.post_url,
+                    target_name=target_name,
+                    target_excerpt=target_excerpt,
+                    comment_id=comment.comment_id,
+                    selector=comment.like_selector,
+                )
             else:
                 report.skips.append(
                     {"post_id": post.post_id, "comment_id": comment.comment_id, "reason": "missing_like_selector"}
@@ -640,25 +705,25 @@ def process_agency_follows(
     pass_index = 0
 
     while True:
-        fresh_agencies = [agency for agency in snapshot.agencies if agency.company_id not in seen_company_ids]
+        fresh_agencies = [agency for agency in snapshot.companies if agency.company_id not in seen_company_ids]
         seen_company_ids.update(agency.company_id for agency in fresh_agencies)
-        report.agencies_scanned = len(seen_company_ids)
+        report.companies_scanned = len(seen_company_ids)
         add_event(
             report,
-            "agency_snapshot_loaded",
+            "company_snapshot_loaded",
             pass_index=pass_index,
             active_tab=snapshot.active_tab,
             following_count=snapshot.following_count,
-            agencies=len(snapshot.agencies),
-            new_agencies=len(fresh_agencies),
+            companies=len(snapshot.companies),
+            new_companies=len(fresh_agencies),
         )
-        store.record_agency_snapshot(report.run_id, pass_index, snapshot)
+        store.record_company_snapshot(report.run_id, pass_index, snapshot)
 
         if fresh_agencies:
             stalled_scrolls = 0
         else:
             stalled_scrolls += 1
-            add_event(report, "agency_snapshot_stalled", pass_index=pass_index, reason="no_new_agencies")
+            add_event(report, "company_snapshot_stalled", pass_index=pass_index, reason="no_new_companies")
 
         follows_remaining, refresh_requested = process_visible_agencies(
             fresh_agencies,
@@ -683,17 +748,17 @@ def process_agency_follows(
         if follows_remaining <= 0 or pass_index >= config.max_passes or stalled_scrolls >= MAX_STALLED_FOLLOW_SCROLLS:
             add_event(
                 report,
-                "agency_follow_scan_completed",
-                reason="follow_cap_reached" if follows_remaining <= 0 else "no_new_agencies_after_scroll" if stalled_scrolls >= MAX_STALLED_FOLLOW_SCROLLS else "scroll_limit_reached",
+                "company_follow_scan_completed",
+                reason="follow_cap_reached" if follows_remaining <= 0 else "no_new_companies_after_scroll" if stalled_scrolls >= MAX_STALLED_FOLLOW_SCROLLS else "scroll_limit_reached",
                 passes=pass_index + 1,
             )
             return
 
         if not browser.scroll_follow_modal(FOLLOW_SCROLL_AMOUNT):
             stalled_scrolls += 1
-            add_event(report, "agency_results_advanced", mode="scroll", pass_index=pass_index, moved=False)
+            add_event(report, "company_results_advanced", mode="scroll", pass_index=pass_index, moved=False)
         else:
-            add_event(report, "agency_results_advanced", mode="scroll", pass_index=pass_index, moved=True, amount=FOLLOW_SCROLL_AMOUNT)
+            add_event(report, "company_results_advanced", mode="scroll", pass_index=pass_index, moved=True, amount=FOLLOW_SCROLL_AMOUNT)
             jitter_sleep(browser, 0.8, 1.4)
 
         snapshot = capture_agency_snapshot(browser)
@@ -703,7 +768,7 @@ def process_agency_follows(
 
 
 def process_visible_agencies(
-    agencies: list[AgencySnapshot],
+    agencies: list[CompanySnapshot],
     store: StateStore,
     report: RunReport,
     browser: BrowserUseClient,
@@ -713,16 +778,16 @@ def process_visible_agencies(
 ) -> tuple[int, bool]:
     now = utc_now().isoformat()
     for position_index, agency in enumerate(agencies):
-        followed_in_store = store.agency_followed(agency.company_id)
+        followed_in_store = store.company_followed(agency.company_id)
         add_event(
             report,
-            "agency_seen",
+            "company_seen",
             company_id=agency.company_id,
             name=agency.name,
             already_following=agency.already_following,
         )
         if agency.already_following or followed_in_store:
-            store.upsert_agency(
+            store.upsert_company(
                 agency.company_id,
                 now,
                 company_url=agency.company_url,
@@ -732,12 +797,12 @@ def process_visible_agencies(
                 followed=True,
                 followed_at=now if agency.already_following else None,
             )
-            store.record_agency_observation(report.run_id, pass_index, position_index, agency, action_taken="already_following")
+            store.record_company_observation(report.run_id, pass_index, position_index, agency, action_taken="already_following")
             report.skips.append({"company_id": agency.company_id, "reason": "already_following"})
-            add_event(report, "agency_skipped", company_id=agency.company_id, reason="already_following")
+            add_event(report, "company_skipped", company_id=agency.company_id, reason="already_following")
             continue
         if follows_remaining <= 0:
-            store.upsert_agency(
+            store.upsert_company(
                 agency.company_id,
                 now,
                 company_url=agency.company_url,
@@ -746,12 +811,12 @@ def process_visible_agencies(
                 followers_text=agency.followers_text,
                 followed=False,
             )
-            store.record_agency_observation(report.run_id, pass_index, position_index, agency, action_taken="follow_cap_reached")
+            store.record_company_observation(report.run_id, pass_index, position_index, agency, action_taken="follow_cap_reached")
             report.skips.append({"company_id": agency.company_id, "reason": "follow_cap_reached"})
-            add_event(report, "agency_skipped", company_id=agency.company_id, reason="follow_cap_reached")
+            add_event(report, "company_skipped", company_id=agency.company_id, reason="follow_cap_reached")
             continue
         if not agency.follow_selector:
-            store.upsert_agency(
+            store.upsert_company(
                 agency.company_id,
                 now,
                 company_url=agency.company_url,
@@ -760,19 +825,19 @@ def process_visible_agencies(
                 followers_text=agency.followers_text,
                 followed=False,
             )
-            store.record_agency_observation(report.run_id, pass_index, position_index, agency, action_taken="missing_follow_selector")
+            store.record_company_observation(report.run_id, pass_index, position_index, agency, action_taken="missing_follow_selector")
             report.skips.append({"company_id": agency.company_id, "reason": "missing_follow_selector"})
-            add_event(report, "agency_skipped", company_id=agency.company_id, reason="missing_follow_selector")
+            add_event(report, "company_skipped", company_id=agency.company_id, reason="missing_follow_selector")
             continue
 
-        add_event(report, "agency_follow_attempt", company_id=agency.company_id, selector=agency.follow_selector)
+        add_event(report, "company_follow_attempt", company_id=agency.company_id, selector=agency.follow_selector)
         try:
             browser.click_selector(agency.follow_selector)
             jitter_sleep(browser, 0.8, 1.6)
             refreshed = capture_agency_snapshot(browser)
             if stop_for_invalid_agency_snapshot(report, refreshed):
                 return follows_remaining, False
-            refreshed_agency = next((item for item in refreshed.agencies if item.company_id == agency.company_id), None)
+            refreshed_agency = next((item for item in refreshed.companies if item.company_id == agency.company_id), None)
             count_increased = (
                 following_count_before is not None
                 and refreshed.following_count is not None
@@ -783,9 +848,9 @@ def process_visible_agencies(
                 or count_increased
             )
             if confirmed:
-                report.agencies_followed += 1
+                report.companies_followed += 1
                 follows_remaining -= 1
-                store.upsert_agency(
+                store.upsert_company(
                     agency.company_id,
                     now,
                     company_url=agency.company_url,
@@ -795,10 +860,19 @@ def process_visible_agencies(
                     followed=True,
                     followed_at=now,
                 )
-                store.record_agency_observation(report.run_id, pass_index, position_index, agency, action_taken="followed")
-                add_event(report, "agency_followed", company_id=agency.company_id, name=agency.name)
+                store.record_company_observation(report.run_id, pass_index, position_index, agency, action_taken="followed")
+                add_event(
+                    report,
+                    "company_followed",
+                    company_id=agency.company_id,
+                    company_url=agency.company_url,
+                    name=agency.name,
+                    target_name=agency.name,
+                    target_url=agency.company_url,
+                    selector=agency.follow_selector,
+                )
             else:
-                store.upsert_agency(
+                store.upsert_company(
                     agency.company_id,
                     now,
                     company_url=agency.company_url,
@@ -807,12 +881,12 @@ def process_visible_agencies(
                     followers_text=agency.followers_text,
                     followed=False,
                 )
-                store.record_agency_observation(report.run_id, pass_index, position_index, agency, action_taken="follow_unconfirmed")
+                store.record_company_observation(report.run_id, pass_index, position_index, agency, action_taken="follow_unconfirmed")
                 report.skips.append({"company_id": agency.company_id, "reason": "follow_unconfirmed"})
-                add_event(report, "agency_skipped", company_id=agency.company_id, reason="follow_unconfirmed")
+                add_event(report, "company_skipped", company_id=agency.company_id, reason="follow_unconfirmed")
             return follows_remaining, True
         except Exception as exc:
-            store.upsert_agency(
+            store.upsert_company(
                 agency.company_id,
                 now,
                 company_url=agency.company_url,
@@ -821,9 +895,9 @@ def process_visible_agencies(
                 followers_text=agency.followers_text,
                 followed=False,
             )
-            store.record_agency_observation(report.run_id, pass_index, position_index, agency, action_taken="follow_failed")
+            store.record_company_observation(report.run_id, pass_index, position_index, agency, action_taken="follow_failed")
             report.skips.append({"company_id": agency.company_id, "reason": "follow_failed", "message": str(exc)})
-            add_event(report, "agency_skipped", company_id=agency.company_id, reason="follow_failed", message=str(exc))
+            add_event(report, "company_skipped", company_id=agency.company_id, reason="follow_failed", message=str(exc))
             return follows_remaining, True
     return follows_remaining, False
 
@@ -850,8 +924,8 @@ def finalize(
         posts_liked=report.posts_liked,
         posts_reposted=report.posts_reposted,
         comments_liked=report.comments_liked,
-        agencies_scanned=report.agencies_scanned,
-        agencies_followed=report.agencies_followed,
+        companies_scanned=report.companies_scanned,
+        companies_followed=report.companies_followed,
         stop_reason=report.stop_reason,
     )
     artifact_dir = artifact_dir or Path("artifacts/linkedin-company-profile-engagement")

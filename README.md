@@ -103,17 +103,21 @@ The shared objects are:
 
 - `automation_runs` as the durable fact table
 - `automation_kpi_runs_v1` as the dashboard-friendly view
+- `automation_action_events_v1` as the action drilldown view
 
 The common fields are:
 
-- identity: `automation_name`, `automation_label`, `platform`, `surface`, `run_id`
+- identity: `automation_name`, `automation_label`, `platform`, `surface`, `run_id`, `profile_name`
 - timing: `started_at`, `finished_at`, `duration_seconds`
 - status: `status`, `stop_reason`
-- KPIs: `items_scanned`, `items_considered`, `actions_total`, `likes_count`, `reposts_count`, `comments_liked_count`, `follows_count`
+- KPIs: `items_scanned`, `items_considered`, `actions_total`, `likes_count`, `reposts_count`, `comments_liked_count`, `follows_count`, `companies_scanned`, `companies_followed`
 - safeguards: `page_shape_ok`, `actor_verified`, `search_shape_ok`, `challenge_detected`
-- extensibility: `metrics_json`, `report_json`
+- extensibility: `metrics_json`, `action_events_json`, `report_json`
+- action drilldown: `action_label`, `target_name`, `target_summary`, `target_url`, `target_locator`, `target_excerpt`, `post_url`, `company_url`, `selector`, `reason`, `message`
 
-Platform-specific detail stays in `metrics_json`, so dashboards can stay stable while individual automations evolve.
+Legacy `agency_*` event names and count fields are normalized to `company_*` / `companies_*` when runs are stored or exported, so dashboard rows and bundles stay on the company terminology while older artifacts still load.
+
+Platform-specific detail stays in `metrics_json`, while action-level drilldowns live in `automation_action_events_v1`, `action_events_json`, and `report_json.events`, so dashboards can stay stable while individual automations evolve. When `target_url` is unavailable for a historical LinkedIn post, `target_locator` still provides the post, comment, or company identifier so the row is not blank.
 
 ## Hosted Sync Seam
 

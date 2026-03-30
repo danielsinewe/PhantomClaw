@@ -6,7 +6,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from automation_analytics import linkedin_company_profile_engagement_metrics, linkedin_sales_community_metrics
+from automation_analytics import (
+    action_events_from_report,
+    linkedin_company_profile_engagement_metrics,
+    linkedin_sales_community_metrics,
+    normalize_report_payload,
+)
 from automation_catalog import (
     LINKEDIN_COMPANY_PROFILE_ENGAGEMENT,
     LINKEDIN_SALES_COMMUNITY_ENGAGEMENT,
@@ -48,6 +53,7 @@ def build_run_bundle(
 ) -> dict[str, Any]:
     canonical = canonical_automation_name(automation_name)
     report_dict = _report_to_dict(report)
+    report_dict = normalize_report_payload(report_dict)
     metrics = metrics_for_automation(canonical, report_dict)
     resolved_platform = platform or automation_platform(canonical)
     if not resolved_platform:
@@ -74,6 +80,8 @@ def build_run_bundle(
             "finished_at": report_dict.get("finished_at"),
             "status": report_dict["status"],
             "stop_reason": report_dict.get("stop_reason"),
+            "profile_name": report_dict.get("profile_name") or report_dict.get("actor_name"),
+            "action_events": action_events_from_report(report_dict),
             "screenshot_path": report_dict.get("screenshot_path"),
         },
         "metrics": metrics,
@@ -161,6 +169,18 @@ def validate_run_bundle(bundle: dict[str, Any]) -> None:
 
     if not isinstance(bundle["metrics"]["metrics_json"], dict):
         raise ValueError("metrics.metrics_json must be an object")
+
+    profile_name = bundle["run"].get("profile_name")
+    if profile_name is not None and not isinstance(profile_name, str):
+        raise ValueError("run.profile_name must be a string or null")
+
+    action_events = bundle["run"].get("action_events")
+    if action_events is not None:
+        if not isinstance(action_events, list):
+            raise ValueError("run.action_events must be an array or null")
+        for action_event in action_events:
+            if not isinstance(action_event, dict):
+                raise ValueError("run.action_events items must be objects")
 
     for field_name, raw in (
         ("generated_at", bundle["generated_at"]),

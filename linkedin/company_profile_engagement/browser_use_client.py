@@ -199,7 +199,7 @@ FOLLOW_COLLECTOR_SCRIPT = r"""
 
   const labelText = (node) => (node?.getAttribute("aria-label") || node?.textContent || "").replace(/\s+/g, " ").trim();
 
-  const agencies = modal
+  const companies = modal
     ? Array.from(modal.querySelectorAll(".org-page-follows-modal__follow-item")).map((item, index) => {
         const link = item.querySelector("a[href*='/company/']");
         const button = Array.from(item.querySelectorAll("button,[role='button']")).find((node) => /follow|following|unfollow/i.test(labelText(node)));
@@ -221,7 +221,7 @@ FOLLOW_COLLECTOR_SCRIPT = r"""
           subtitle,
           followers_text: followersText,
           already_following: alreadyFollowing,
-          follow_selector: button && /^follow(\s|$)/i.test(buttonLabel) ? `agency:${index}:follow` : null,
+          follow_selector: button && /^follow(\s|$)/i.test(buttonLabel) ? `company:${index}:follow` : null,
         };
       })
     : [];
@@ -235,7 +235,8 @@ FOLLOW_COLLECTOR_SCRIPT = r"""
     challenge_signals: challengeSignals,
     following_count: followingCountMatch ? Number(followingCountMatch[1]) : null,
     active_tab: activeTab ? (activeTab.textContent || "").replace(/\s+/g, " ").trim() : null,
-    agencies,
+    companies,
+    agencies: companies,
   });
 })()
 """
@@ -500,9 +501,9 @@ class BrowserUseClient:
         self._run("screenshot", str(path))
 
     def click_selector(self, selector: str) -> None:
-        agency_match = re.fullmatch(r"agency:(\d+):follow", selector)
-        if agency_match:
-            return self._click_agency_follow(int(agency_match.group(1)))
+        company_match = re.fullmatch(r"(?:company|agency):(\d+):follow", selector)
+        if company_match:
+            return self._click_company_follow(int(company_match.group(1)))
 
         action_match = re.fullmatch(r"card:(\d+):(like|repost|comment-toggle|comment:(\d+):like)", selector)
         if action_match:
@@ -541,14 +542,14 @@ class BrowserUseClient:
 """
         self.eval(script)
 
-    def _click_agency_follow(self, agency_index: int) -> None:
+    def _click_company_follow(self, company_index: int) -> None:
         script = f"""
 (() => {{
   const modal = document.querySelector(".org-page-follows-modal");
   if (!modal) throw new Error("follow modal not found");
   const items = Array.from(modal.querySelectorAll(".org-page-follows-modal__follow-item"));
-  const item = items[{agency_index}];
-  if (!item) throw new Error("agency row not found");
+  const item = items[{company_index}];
+  if (!item) throw new Error("company row not found");
   const button = Array.from(item.querySelectorAll("button,[role='button']")).find((node) => /^follow(\\s|$)/i.test((node.getAttribute("aria-label") || node.textContent || "").trim()));
   if (!button) throw new Error("follow button not found");
   button.click();
@@ -556,6 +557,9 @@ class BrowserUseClient:
 }})()
 """
         self.eval(script)
+
+    def _click_agency_follow(self, agency_index: int) -> None:
+        self._click_company_follow(agency_index)
 
     def _click_card_comment_toggle(self, card_index: int) -> None:
         script = f"""
