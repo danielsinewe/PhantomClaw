@@ -162,6 +162,96 @@ class PhantomClawBundleTests(unittest.TestCase):
             self.assertEqual(payload["automation"]["surface"], "sales-community")
             self.assertEqual(payload["metrics"]["actions_total"], 1)
 
+    def test_build_run_bundle_supports_peerlist_scroll_engagement(self) -> None:
+        report = {
+            "run_id": "peerlist-scroll-1",
+            "started_at": "2026-04-20T10:00:00+00:00",
+            "finished_at": "2026-04-20T10:01:00+00:00",
+            "status": "ok",
+            "profile_name": "Daniel",
+            "actor_verified": True,
+            "has_challenge": False,
+            "items_scanned": 6,
+            "items_considered": 6,
+            "upvotes_count": 1,
+            "comments_count": 0,
+            "follows_count": 0,
+            "actions": [{"type": "upvote", "target": "visible_upvote_2", "verified": True}],
+            "events": [
+                {
+                    "ts": "2026-04-20T10:00:30+00:00",
+                    "type": "peerlist_post_upvoted",
+                    "target_name": "Peerlist visible upvote 2",
+                    "selector": "visible_upvote_2",
+                    "verified": True,
+                }
+            ],
+        }
+
+        bundle = build_run_bundle(automation_name="peerlist-scroll-engagement", report=report)
+
+        self.assertEqual(bundle["automation"]["platform"], "peerlist")
+        self.assertEqual(bundle["automation"]["surface"], "scroll")
+        self.assertEqual(bundle["run"]["profile_name"], "Daniel")
+        self.assertEqual(bundle["metrics"]["actions_total"], 1)
+        self.assertEqual(bundle["metrics"]["likes_count"], 1)
+        self.assertEqual(bundle["run"]["action_events"][0]["type"], "peerlist_post_upvoted")
+
+    def test_build_run_bundle_supports_peerlist_follow_workflow(self) -> None:
+        report = {
+            "run_id": "peerlist-follow-1",
+            "started_at": "2026-04-20T11:00:00+00:00",
+            "finished_at": "2026-04-20T11:02:00+00:00",
+            "status": "ok",
+            "profile_name": "Daniel",
+            "actor_verified": True,
+            "workflow_type": "follow",
+            "workflow_parameters": {
+                "type": "follow",
+                "follows_per_day": 20,
+                "unfollows_per_day": 10,
+                "unfollow_after_days": 14,
+                "do_not_unfollow_peers": True,
+            },
+            "peerlist_profile_followers_before": 473,
+            "peerlist_profile_followers_after": 474,
+            "profiles_scanned": 12,
+            "profiles_considered": 3,
+            "follows_count": 1,
+            "unfollows_count": 0,
+            "actions": [
+                {
+                    "type": "follow",
+                    "target_name": "Ada Builder",
+                    "target_url": "https://peerlist.io/adabuilder",
+                    "verified": True,
+                }
+            ],
+            "events": [
+                {
+                    "ts": "2026-04-20T11:01:00+00:00",
+                    "type": "peerlist_profile_followed",
+                    "target_name": "Ada Builder",
+                    "target_url": "https://peerlist.io/adabuilder",
+                    "verified": True,
+                }
+            ],
+        }
+
+        bundle = build_run_bundle(automation_name="peerlist-follow-workflow", report=report)
+
+        self.assertEqual(bundle["automation"]["platform"], "peerlist")
+        self.assertEqual(bundle["automation"]["surface"], "network")
+        self.assertEqual(bundle["automation"]["kind"], "workflow")
+        self.assertEqual(bundle["automation"]["north_star_metric"], "peerlist_profile_followers")
+        self.assertEqual(bundle["automation"]["parameters"]["do_not_unfollow_peers"], True)
+        self.assertEqual(bundle["metrics"]["actions_total"], 1)
+        self.assertEqual(bundle["metrics"]["follows_count"], 1)
+        self.assertEqual(bundle["metrics"]["metrics_json"]["north_star_metric"], "peerlist_profile_followers")
+        self.assertEqual(bundle["metrics"]["metrics_json"]["peerlist_profile_followers_delta"], 1)
+        self.assertEqual(bundle["metrics"]["metrics_json"]["workflow_parameters"]["unfollow_after_days"], 14)
+        self.assertEqual(bundle["run"]["action_events"][0]["type"], "peerlist_profile_followed")
+
 
 if __name__ == "__main__":
     unittest.main()

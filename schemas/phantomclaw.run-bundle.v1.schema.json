@@ -39,8 +39,11 @@
       "properties": {
         "name": { "type": "string" },
         "label": { "type": "string" },
+        "kind": { "type": "string", "enum": ["engagement", "workflow"] },
         "platform": { "type": "string" },
-        "surface": { "type": ["string", "null"] }
+        "surface": { "type": ["string", "null"] },
+        "north_star_metric": { "type": ["string", "null"] },
+        "parameters": { "type": "object" }
       }
     },
     "run": {

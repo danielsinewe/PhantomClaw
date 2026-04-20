@@ -104,20 +104,28 @@ The shared objects are:
 - `automation_runs` as the durable fact table
 - `automation_kpi_runs_v1` as the dashboard-friendly view
 - `automation_action_events_v1` as the action drilldown view
+- `automation_daily_metrics` as the daily north-star metric snapshot table
+- `automation_daily_metrics_v1` as the north-star trend view
 
 The common fields are:
 
 - identity: `automation_name`, `automation_label`, `platform`, `surface`, `run_id`, `profile_name`
+- automation standard: `automation.kind`, `automation.parameters`, `automation.north_star_metric` in exported bundles
 - timing: `started_at`, `finished_at`, `duration_seconds`
 - status: `status`, `stop_reason`
 - KPIs: `items_scanned`, `items_considered`, `actions_total`, `likes_count`, `reposts_count`, `comments_liked_count`, `follows_count`, `companies_scanned`, `companies_followed`
+- workflow KPIs: `north_star_metric`, `workflow_type`, `peerlist_profile_followers_before`, `peerlist_profile_followers_after`, `peerlist_profile_followers_delta`, `unfollows_count`, `peers_preserved_count`, `skipped_count`, `blockers_count`
 - safeguards: `page_shape_ok`, `actor_verified`, `search_shape_ok`, `challenge_detected`
 - extensibility: `metrics_json`, `action_events_json`, `report_json`
-- action drilldown: `action_label`, `target_name`, `target_summary`, `target_url`, `target_locator`, `target_excerpt`, `post_url`, `company_url`, `selector`, `reason`, `message`
+- action drilldown: `action_label`, `target_name`, `target_summary`, `target_url`, `target_locator`, `target_excerpt`, `post_url`, `company_url`, `selector`, `reason`, `message`, `verified`
 
 Legacy `agency_*` event names and count fields are normalized to `company_*` / `companies_*` when runs are stored or exported, so dashboard rows and bundles stay on the company terminology while older artifacts still load.
 
 Platform-specific detail stays in `metrics_json`, while action-level drilldowns live in `automation_action_events_v1`, `action_events_json`, and `report_json.events`, so dashboards can stay stable while individual automations evolve. When `target_url` is unavailable for a historical LinkedIn post, `target_locator` still provides the post, comment, or company identifier so the row is not blank.
+
+North-star metrics should be stored separately as daily absolute snapshots in `automation_daily_metrics`. Per-run bundles can include before/after deltas for debugging, but trend charts should use the daily table so the dashboard has one value per profile, metric, and day.
+
+See [`docs/automation-standard-format.md`](./docs/automation-standard-format.md) for the standard format all automations should use, including workflow parameters and north-star metrics.
 
 ## Hosted Sync Seam
 

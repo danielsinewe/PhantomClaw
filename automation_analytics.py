@@ -45,6 +45,52 @@ CREATE TABLE IF NOT EXISTS automation_runs (
 );
 """
 
+NORTH_STAR_DAILY_METRICS_TABLE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS automation_daily_metrics (
+  workspace_slug TEXT,
+  platform TEXT NOT NULL,
+  profile_name TEXT NOT NULL,
+  metric_name TEXT NOT NULL,
+  metric_date DATE NOT NULL,
+  metric_value NUMERIC NOT NULL,
+  source TEXT NOT NULL DEFAULT 'cron',
+  captured_at TEXT NOT NULL,
+  run_id TEXT,
+  metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  PRIMARY KEY (workspace_slug, platform, profile_name, metric_name, metric_date)
+);
+"""
+
+NORTH_STAR_DAILY_METRICS_VIEW_SCHEMA = """
+DROP VIEW IF EXISTS automation_daily_metrics_v1;
+
+CREATE OR REPLACE VIEW automation_daily_metrics_v1 AS
+SELECT
+  workspace_slug,
+  platform,
+  profile_name,
+  metric_name,
+  metric_date,
+  metric_value,
+  LAG(metric_value) OVER (
+    PARTITION BY workspace_slug, platform, profile_name, metric_name
+    ORDER BY metric_date
+  ) AS previous_metric_value,
+  metric_value - LAG(metric_value) OVER (
+    PARTITION BY workspace_slug, platform, profile_name, metric_name
+    ORDER BY metric_date
+  ) AS daily_delta,
+  source,
+  captured_at,
+  CASE
+    WHEN captured_at IS NULL THEN NULL
+    ELSE captured_at::timestamptz
+  END AS captured_at_ts,
+  run_id,
+  metadata_json
+FROM automation_daily_metrics;
+"""
+
 ANALYTICS_POSTGRES_VIEW_SCHEMA = """
 DROP VIEW IF EXISTS automation_kpi_runs_v1;
 
@@ -92,6 +138,50 @@ SELECT
   repost_ctx.reposted_post_url AS reposted_post_url,
   comments_liked_count,
   follows_count,
+  metrics_json->>'north_star_metric' AS north_star_metric,
+  metrics_json->>'workflow_type' AS workflow_type,
+  CASE
+    WHEN metrics_json ? 'peerlist_profile_followers_before'
+      AND metrics_json->>'peerlist_profile_followers_before' <> ''
+    THEN (metrics_json->>'peerlist_profile_followers_before')::integer
+    ELSE NULL
+  END AS peerlist_profile_followers_before,
+  CASE
+    WHEN metrics_json ? 'peerlist_profile_followers_after'
+      AND metrics_json->>'peerlist_profile_followers_after' <> ''
+    THEN (metrics_json->>'peerlist_profile_followers_after')::integer
+    ELSE NULL
+  END AS peerlist_profile_followers_after,
+  CASE
+    WHEN metrics_json ? 'peerlist_profile_followers_delta'
+      AND metrics_json->>'peerlist_profile_followers_delta' <> ''
+    THEN (metrics_json->>'peerlist_profile_followers_delta')::integer
+    ELSE NULL
+  END AS peerlist_profile_followers_delta,
+  CASE
+    WHEN metrics_json ? 'unfollows_count'
+      AND metrics_json->>'unfollows_count' <> ''
+    THEN (metrics_json->>'unfollows_count')::integer
+    ELSE 0
+  END AS unfollows_count,
+  CASE
+    WHEN metrics_json ? 'peers_preserved_count'
+      AND metrics_json->>'peers_preserved_count' <> ''
+    THEN (metrics_json->>'peers_preserved_count')::integer
+    ELSE 0
+  END AS peers_preserved_count,
+  CASE
+    WHEN metrics_json ? 'skipped_count'
+      AND metrics_json->>'skipped_count' <> ''
+    THEN (metrics_json->>'skipped_count')::integer
+    ELSE 0
+  END AS skipped_count,
+  CASE
+    WHEN metrics_json ? 'blockers_count'
+      AND metrics_json->>'blockers_count' <> ''
+    THEN (metrics_json->>'blockers_count')::integer
+    ELSE 0
+  END AS blockers_count,
   COALESCE(companies_scanned, 0) AS companies_scanned,
   COALESCE(companies_followed, 0) AS companies_followed,
   metrics_json,
@@ -166,6 +256,9 @@ SELECT
     WHEN 'comment_liked' THEN 'Comment liked'
     WHEN 'company_followed' THEN 'Company followed'
     WHEN 'agency_followed' THEN 'Company followed'
+    WHEN 'peerlist_post_upvoted' THEN 'Peerlist post upvoted'
+    WHEN 'peerlist_profile_followed' THEN 'Peerlist profile followed'
+    WHEN 'peerlist_profile_unfollowed' THEN 'Peerlist profile unfollowed'
     WHEN 'item_action_taken' THEN 'Item action taken'
     ELSE COALESCE(action_event->>'type', 'unknown')
   END AS action_label,
@@ -226,6 +319,12 @@ SELECT
   action_event->>'selector' AS selector,
   action_event->>'reason' AS reason,
   action_event->>'message' AS message,
+  CASE
+    WHEN action_event ? 'verified'
+      AND action_event->>'verified' <> ''
+    THEN (action_event->>'verified')::boolean
+    ELSE NULL
+  END AS verified,
   action_event AS action_event_json
 FROM automation_runs
 CROSS JOIN LATERAL jsonb_array_elements(COALESCE(action_events_json, '[]'::jsonb)) WITH ORDINALITY AS action_events(action_event, action_ordinal)
@@ -246,6 +345,9 @@ ACTION_EVENT_TYPES = {
     "company_followed",
     "comment_liked",
     "item_action_taken",
+    "peerlist_post_upvoted",
+    "peerlist_profile_followed",
+    "peerlist_profile_unfollowed",
     "post_liked",
     "post_reposted",
 }
@@ -383,6 +485,97 @@ def action_events_from_report(report: Any) -> list[dict[str, Any]]:
     return action_events
 
 
+def peerlist_follow_workflow_metrics(report: Any) -> dict[str, Any]:
+    data = _report_to_dict(report)
+    actions = data.get("actions")
+    skipped = data.get("skipped")
+    blockers = data.get("blockers")
+    workflow_parameters = data.get("workflow_parameters")
+    if not isinstance(actions, list):
+        actions = []
+    if not isinstance(skipped, list):
+        skipped = []
+    if not isinstance(blockers, list):
+        blockers = []
+    if not isinstance(workflow_parameters, dict):
+        workflow_parameters = {}
+
+    follows_count = int(
+        data.get(
+            "follows_count",
+            sum(
+                1
+                for action in actions
+                if isinstance(action, dict)
+                and action.get("type") in {"follow", "peerlist_profile_followed"}
+                and bool(action.get("verified", True))
+            ),
+        )
+    )
+    unfollows_count = int(
+        data.get(
+            "unfollows_count",
+            sum(
+                1
+                for action in actions
+                if isinstance(action, dict)
+                and action.get("type") in {"unfollow", "peerlist_profile_unfollowed"}
+                and bool(action.get("verified", True))
+            ),
+        )
+    )
+    peers_preserved_count = int(
+        data.get(
+            "peers_preserved_count",
+            sum(
+                1
+                for item in skipped
+                if isinstance(item, dict) and item.get("reason") in {"peer_preserved", "is_peer"}
+            ),
+        )
+    )
+    followers_before = data.get("peerlist_profile_followers_before")
+    followers_after = data.get("peerlist_profile_followers_after")
+    followers_delta = data.get("peerlist_profile_followers_delta")
+    if followers_delta is None and followers_before is not None and followers_after is not None:
+        followers_delta = int(followers_after) - int(followers_before)
+
+    profiles_scanned = int(data.get("profiles_scanned", data.get("items_scanned", 0)))
+    profiles_considered = int(data.get("profiles_considered", data.get("items_considered", profiles_scanned)))
+    action_total = follows_count + unfollows_count
+
+    return {
+        "page_shape_ok": data.get("page_shape_ok"),
+        "actor_verified": bool(data.get("actor_verified", False)),
+        "search_shape_ok": data.get("search_shape_ok"),
+        "challenge_detected": bool(data.get("has_challenge", False)) or data.get("stop_reason") == "challenge_detected",
+        "items_scanned": profiles_scanned,
+        "items_considered": profiles_considered,
+        "actions_total": action_total,
+        "likes_count": 0,
+        "reposts_count": 0,
+        "comments_liked_count": 0,
+        "follows_count": follows_count,
+        "metrics_json": {
+            "north_star_metric": "peerlist_profile_followers",
+            "peerlist_profile_followers_before": followers_before,
+            "peerlist_profile_followers_after": followers_after,
+            "peerlist_profile_followers_delta": followers_delta,
+            "workflow_type": data.get("workflow_type") or workflow_parameters.get("type"),
+            "automation_kind": "workflow",
+            "workflow_parameters": workflow_parameters,
+            "automation_parameters": workflow_parameters,
+            "profiles_scanned": profiles_scanned,
+            "profiles_considered": profiles_considered,
+            "follows_count": follows_count,
+            "unfollows_count": unfollows_count,
+            "peers_preserved_count": peers_preserved_count,
+            "skipped_count": len(skipped),
+            "blockers_count": len(blockers),
+        },
+    }
+
+
 def linkedin_company_profile_engagement_metrics(report: Any) -> dict[str, Any]:
     data = _report_to_dict(report)
     companies_scanned = int(data.get("companies_scanned", data.get("agencies_scanned", 0)))
@@ -432,6 +625,59 @@ def linkedin_sales_community_metrics(report: Any) -> dict[str, Any]:
             "items_scanned": int(data.get("items_scanned", 0)),
             "items_considered": int(data.get("items_considered", 0)),
             "items_liked": int(data.get("items_liked", 0)),
+        },
+    }
+
+
+def peerlist_scroll_engagement_metrics(report: Any) -> dict[str, Any]:
+    data = _report_to_dict(report)
+    actions = data.get("actions")
+    skipped = data.get("skipped")
+    blockers = data.get("blockers")
+    if not isinstance(actions, list):
+        actions = []
+    if not isinstance(skipped, list):
+        skipped = []
+    if not isinstance(blockers, list):
+        blockers = []
+
+    upvotes_count = int(
+        data.get(
+            "upvotes_count",
+            sum(
+                1
+                for action in actions
+                if isinstance(action, dict)
+                and action.get("type") in {"upvote", "peerlist_post_upvoted"}
+                and bool(action.get("verified", True))
+            ),
+        )
+    )
+    comments_count = int(data.get("comments_count", 0))
+    follows_count = int(data.get("follows_count", 0))
+    items_scanned = int(data.get("items_scanned", data.get("upvote_buttons_seen", 0)))
+    items_considered = int(data.get("items_considered", max(items_scanned, upvotes_count)))
+    action_total = upvotes_count + comments_count + follows_count
+
+    return {
+        "page_shape_ok": data.get("page_shape_ok"),
+        "actor_verified": bool(data.get("actor_verified", False)),
+        "search_shape_ok": None,
+        "challenge_detected": bool(data.get("has_challenge", False)) or data.get("stop_reason") == "challenge_detected",
+        "items_scanned": items_scanned,
+        "items_considered": items_considered,
+        "actions_total": action_total,
+        "likes_count": upvotes_count,
+        "reposts_count": 0,
+        "comments_liked_count": 0,
+        "follows_count": follows_count,
+        "metrics_json": {
+            "upvotes_count": upvotes_count,
+            "comments_count": comments_count,
+            "follows_count": follows_count,
+            "skipped_count": len(skipped),
+            "blockers_count": len(blockers),
+            "browser_profile": data.get("browser_profile"),
         },
     }
 

@@ -1,0 +1,49 @@
+{
+  "name": "phantomclaw",
+  "version": "0.1.0",
+  "description": "Codex workflows for PhantomClaw/OpenClaw remote browser automations, Railway operations, and safe platform playbooks.",
+  "author": {
+    "name": "Daniel Sinewe",
+    "email": "hello@danielsinewe.com",
+    "url": "https://danielsinewe.com"
+  },
+  "homepage": "https://phantomclaw.ai",
+  "repository": "https://github.com/danielsinewe/Automations",
+  "license": "MIT",
+  "keywords": [
+    "phantomclaw",
+    "openclaw",
+    "railway",
+    "browser-automation",
+    "peerlist"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks.json",
+  "mcpServers": "./.mcp.json",
+  "apps": "./.app.json",
+  "interface": {
+    "displayName": "PhantomClaw",
+    "shortDescription": "Run and document remote OpenClaw automations safely.",
+    "longDescription": "PhantomClaw captures the operating model for the public automation core, private control plane, CLI run-bundle sync, Railway-hosted OpenClaw gateway, and rule-aware browser automations such as Peerlist engagement.",
+    "developerName": "Daniel Sinewe",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Remote browser automation",
+      "Railway operations",
+      "Compliance-aware playbooks",
+      "Run-bundle documentation"
+    ],
+    "websiteURL": "https://phantomclaw.ai",
+    "privacyPolicyURL": "https://phantomclaw.ai/privacy",
+    "termsOfServiceURL": "https://phantomclaw.ai/terms",
+    "defaultPrompt": [
+      "Set up a safe remote Peerlist automation.",
+      "Check my Railway OpenClaw gateway health.",
+      "Document a new PhantomClaw run playbook."
+    ],
+    "brandColor": "#111827",
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/logo.svg",
+    "screenshots": []
+  }
+}

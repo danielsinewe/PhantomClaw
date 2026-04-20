@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="PhantomClaw icon">
+  <rect width="64" height="64" rx="14" fill="#111827"/>
+  <path d="M19 42V19h12c7 0 12 4 12 11s-5 11-12 11h-5v1h-7Zm7-8h5c3 0 5-1 5-4s-2-4-5-4h-5v8Z" fill="#f9fafb"/>
+  <path d="M39 43c5-2 8-6 8-12 0-4-1-8-4-11 7 3 11 9 11 17 0 6-3 11-8 15l-7-9Z" fill="#38bdf8"/>
+</svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 96" role="img" aria-label="PhantomClaw logo">
+  <rect width="96" height="96" rx="22" fill="#111827"/>
+  <path d="M28 62V28h17c10 0 17 6 17 16s-7 16-17 16h-7v2H28Zm10-11h7c4 0 7-2 7-7s-3-7-7-7h-7v14Z" fill="#f9fafb"/>
+  <path d="M59 64c7-3 12-9 12-18 0-7-3-12-7-17 10 4 17 14 17 26 0 9-5 17-12 22L59 64Z" fill="#38bdf8"/>
+  <text x="118" y="58" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="700" fill="#111827">PhantomClaw</text>
+  <text x="120" y="78" font-family="Inter, Arial, sans-serif" font-size="13" fill="#4b5563">Remote browser automation playbooks</text>
+</svg>

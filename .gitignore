@@ -2,6 +2,7 @@
 .agents/
 .env
 .env.local
+.browser-use-peerlist-profile-id
 .pytest_cache/
 .tmp/
 .venv/

@@ -3,12 +3,15 @@ import unittest
 from automation_analytics import (
     ANALYTICS_POSTGRES_ACTION_EVENTS_VIEW_SCHEMA,
     ANALYTICS_POSTGRES_VIEW_SCHEMA,
+    NORTH_STAR_DAILY_METRICS_TABLE_SCHEMA,
+    NORTH_STAR_DAILY_METRICS_VIEW_SCHEMA,
     action_events_from_report,
     extract_post_excerpt,
     extract_post_target_name,
     linkedin_company_profile_engagement_metrics,
     linkedin_sales_community_metrics,
     normalize_report_payload,
+    peerlist_follow_workflow_metrics,
 )
 from linkedin.company_profile_engagement.models import RunReport
 from linkedin.sales_community_engagement.models import CommunityRunReport
@@ -124,6 +127,25 @@ class AutomationAnalyticsTests(unittest.TestCase):
         self.assertIn("workspace_slug", ANALYTICS_POSTGRES_VIEW_SCHEMA)
         self.assertIn("companies_followed", ANALYTICS_POSTGRES_VIEW_SCHEMA)
         self.assertIn("reposted_post_url", ANALYTICS_POSTGRES_VIEW_SCHEMA)
+        self.assertIn("north_star_metric", ANALYTICS_POSTGRES_VIEW_SCHEMA)
+        self.assertIn("workflow_type", ANALYTICS_POSTGRES_VIEW_SCHEMA)
+        self.assertIn("peerlist_profile_followers_delta", ANALYTICS_POSTGRES_VIEW_SCHEMA)
+        self.assertIn("unfollows_count", ANALYTICS_POSTGRES_VIEW_SCHEMA)
+        self.assertIn("peers_preserved_count", ANALYTICS_POSTGRES_VIEW_SCHEMA)
+        self.assertIn("skipped_count", ANALYTICS_POSTGRES_VIEW_SCHEMA)
+        self.assertIn("blockers_count", ANALYTICS_POSTGRES_VIEW_SCHEMA)
+
+    def test_daily_metrics_schema_tracks_north_star_snapshots(self) -> None:
+        self.assertIn("automation_daily_metrics", NORTH_STAR_DAILY_METRICS_TABLE_SCHEMA)
+        self.assertIn("metric_date DATE NOT NULL", NORTH_STAR_DAILY_METRICS_TABLE_SCHEMA)
+        self.assertIn("metric_value NUMERIC NOT NULL", NORTH_STAR_DAILY_METRICS_TABLE_SCHEMA)
+        self.assertIn("PRIMARY KEY", NORTH_STAR_DAILY_METRICS_TABLE_SCHEMA)
+        self.assertIn("automation_daily_metrics_v1", NORTH_STAR_DAILY_METRICS_VIEW_SCHEMA)
+        self.assertIn("daily_delta", NORTH_STAR_DAILY_METRICS_VIEW_SCHEMA)
+
+    def test_action_events_view_schema_exposes_verified(self) -> None:
+        self.assertIn("verified", ANALYTICS_POSTGRES_ACTION_EVENTS_VIEW_SCHEMA)
+        self.assertIn("action_event->>'verified'", ANALYTICS_POSTGRES_ACTION_EVENTS_VIEW_SCHEMA)
 
     def test_linkedin_sales_community_metrics_normalize_actions(self) -> None:
         report = CommunityRunReport(
@@ -143,6 +165,34 @@ class AutomationAnalyticsTests(unittest.TestCase):
         self.assertEqual(metrics["reposts_count"], 0)
         self.assertEqual(metrics["comments_liked_count"], 0)
         self.assertEqual(metrics["follows_count"], 0)
+
+    def test_peerlist_follow_workflow_metrics_exposes_dashboard_fields(self) -> None:
+        metrics = peerlist_follow_workflow_metrics(
+            {
+                "actor_verified": True,
+                "workflow_type": "follow",
+                "workflow_parameters": {
+                    "type": "follow",
+                    "follows_per_day": 20,
+                    "unfollows_per_day": 10,
+                    "unfollow_after_days": 14,
+                    "do_not_unfollow_peers": True,
+                },
+                "peerlist_profile_followers_before": 473,
+                "peerlist_profile_followers_after": 474,
+                "profiles_scanned": 12,
+                "profiles_considered": 3,
+                "follows_count": 1,
+                "unfollows_count": 0,
+                "skipped": [{"reason": "peer_preserved"}],
+                "blockers": [],
+            }
+        )
+
+        self.assertEqual(metrics["metrics_json"]["north_star_metric"], "peerlist_profile_followers")
+        self.assertEqual(metrics["metrics_json"]["peerlist_profile_followers_delta"], 1)
+        self.assertEqual(metrics["metrics_json"]["unfollows_count"], 0)
+        self.assertEqual(metrics["metrics_json"]["peers_preserved_count"], 1)
 
 
 if __name__ == "__main__":

@@ -10,12 +10,19 @@ from automation_analytics import (
     action_events_from_report,
     linkedin_company_profile_engagement_metrics,
     linkedin_sales_community_metrics,
+    peerlist_follow_workflow_metrics,
     normalize_report_payload,
+    peerlist_scroll_engagement_metrics,
 )
 from automation_catalog import (
     LINKEDIN_COMPANY_PROFILE_ENGAGEMENT,
     LINKEDIN_SALES_COMMUNITY_ENGAGEMENT,
+    PEERLIST_FOLLOW_WORKFLOW,
+    PEERLIST_SCROLL_ENGAGEMENT,
+    automation_default_parameters,
+    automation_kind,
     automation_label,
+    automation_north_star_metric,
     automation_platform,
     automation_surface,
     canonical_automation_name,
@@ -40,7 +47,21 @@ def metrics_for_automation(automation_name: str, report: Any) -> dict[str, Any]:
         return linkedin_company_profile_engagement_metrics(report)
     if canonical == LINKEDIN_SALES_COMMUNITY_ENGAGEMENT:
         return linkedin_sales_community_metrics(report)
+    if canonical == PEERLIST_SCROLL_ENGAGEMENT:
+        return peerlist_scroll_engagement_metrics(report)
+    if canonical == PEERLIST_FOLLOW_WORKFLOW:
+        return peerlist_follow_workflow_metrics(report)
     raise ValueError(f"No metrics adapter registered for automation: {automation_name}")
+
+
+def automation_parameters_for_report(automation_name: str, report: dict[str, Any]) -> dict[str, Any]:
+    parameters = automation_default_parameters(automation_name)
+    raw = report.get("automation_parameters")
+    if raw is None:
+        raw = report.get("workflow_parameters")
+    if isinstance(raw, dict):
+        parameters.update(raw)
+    return parameters
 
 
 def build_run_bundle(
@@ -55,6 +76,7 @@ def build_run_bundle(
     report_dict = _report_to_dict(report)
     report_dict = normalize_report_payload(report_dict)
     metrics = metrics_for_automation(canonical, report_dict)
+    parameters = automation_parameters_for_report(canonical, report_dict)
     resolved_platform = platform or automation_platform(canonical)
     if not resolved_platform:
         raise ValueError(f"No platform registered for automation: {automation_name}")
@@ -71,8 +93,11 @@ def build_run_bundle(
         "automation": {
             "name": canonical,
             "label": automation_label(canonical),
+            "kind": automation_kind(canonical),
             "platform": resolved_platform,
             "surface": automation_surface(canonical),
+            "north_star_metric": automation_north_star_metric(canonical),
+            "parameters": parameters,
         },
         "run": {
             "run_id": report_dict["run_id"],
@@ -148,6 +173,18 @@ def validate_run_bundle(bundle: dict[str, Any]) -> None:
 
     if not isinstance(bundle["report"], dict):
         raise ValueError("Bundle report must be an object")
+
+    automation_section = bundle["automation"]
+    automation_kind_value = automation_section.get("kind")
+    if automation_kind_value is not None and automation_kind_value not in {"engagement", "workflow"}:
+        raise ValueError("automation.kind must be engagement, workflow, or omitted")
+
+    if "parameters" in automation_section and not isinstance(automation_section["parameters"], dict):
+        raise ValueError("automation.parameters must be an object when present")
+
+    north_star_metric = automation_section.get("north_star_metric")
+    if north_star_metric is not None and not isinstance(north_star_metric, str):
+        raise ValueError("automation.north_star_metric must be a string or null")
 
     run_id = bundle["run"]["run_id"]
     report_run_id = bundle["report"].get("run_id")

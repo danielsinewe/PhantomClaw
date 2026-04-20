@@ -18,6 +18,7 @@ Responsible for:
 - local SQLite state by default
 - optional self-hosted Postgres state and analytics
 - normalized metrics
+- daily north-star metric snapshots
 - building run bundles for upload
 
 ### Private `phantomclaw-cli`
@@ -53,6 +54,16 @@ Top-level sections:
 - `report`
 
 The bundle intentionally includes both normalized metrics and the raw report so the private product can store a durable source payload while also powering dashboard summaries.
+
+All automation bundles should use the standard automation fields documented in [`docs/automation-standard-format.md`](./automation-standard-format.md):
+
+- `automation.kind`
+- `automation.parameters`
+- `automation.north_star_metric`
+
+This lets engagement automations, workflows, and future platform-specific tasks share one dashboard contract while keeping platform-specific details in `metrics.metrics_json` and `report`.
+
+North-star metric snapshots should be stored independently from run bundles as one absolute value per workspace, platform, profile, metric, and day. A daily cron should capture values such as `peerlist_profile_followers`; per-run bundles may still store before/after deltas for attribution.
 
 ## Expected Private CLI Commands
 
