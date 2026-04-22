@@ -1,0 +1,39 @@
+{
+  "run_id": "peerlist-follow-fixture-cap",
+  "started_at": "2026-04-21T09:31:33.000000+00:00",
+  "finished_at": "2026-04-21T09:31:35.000000+00:00",
+  "status": "no_action",
+  "stop_reason": null,
+  "profile_name": "Daniel",
+  "actor_verified": true,
+  "workflow_type": "follow",
+  "workflow_parameters": {
+    "type": "follow",
+    "follows_per_day": 3,
+    "max_follows_per_run": 1,
+    "unfollows_per_day": 10,
+    "unfollow_after_days": 14,
+    "do_not_unfollow_peers": true
+  },
+  "peerlist_profile_followers_before": 474,
+  "peerlist_profile_followers_after": 474,
+  "profiles_scanned": 0,
+  "profiles_considered": 0,
+  "follows_count": 0,
+  "unfollows_count": 0,
+  "peers_preserved_count": 0,
+  "daily_follows_before": 3,
+  "daily_follows_remaining": 0,
+  "actions": [],
+  "events": [],
+  "skipped": [
+    {
+      "type": "daily_follow_cap_reached",
+      "reason": "Daily follow cap reached: 3/3",
+      "verified": true,
+      "ts": "2026-04-21T09:31:34.938132+00:00"
+    }
+  ],
+  "blockers": [],
+  "browser_provider": "peerlist-http"
+}

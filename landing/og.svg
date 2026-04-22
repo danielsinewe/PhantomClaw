@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#faf6ed"/>
+      <stop offset="0.58" stop-color="#f0eadf"/>
+      <stop offset="1" stop-color="#d7f2bf"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="92" cy="90" r="36" fill="none" stroke="#11120e" stroke-width="4"/>
+  <text x="80" y="104" fill="#11120e" font-family="Georgia, serif" font-size="42">P</text>
+  <text x="150" y="104" fill="#11120e" font-family="Arial, sans-serif" font-size="34" font-weight="700">PhantomClaw</text>
+  <text x="88" y="292" fill="#27693f" font-family="Arial, sans-serif" font-size="22" font-weight="700" letter-spacing="6">AUDIENCE GROWTH WORKFLOWS</text>
+  <text x="86" y="405" fill="#11120e" font-family="Georgia, serif" font-size="118">Grow with</text>
+  <text x="86" y="512" fill="#11120e" font-family="Georgia, serif" font-size="118">visible limits.</text>
+  <g opacity="0.9">
+    <rect x="820" y="155" width="285" height="92" rx="28" fill="#fffdf7" stroke="#11120e" stroke-opacity="0.12"/>
+    <text x="858" y="195" fill="#77796e" font-family="Arial, sans-serif" font-size="18" font-weight="700">Followers</text>
+    <text x="858" y="228" fill="#11120e" font-family="Arial, sans-serif" font-size="38" font-weight="800">477</text>
+    <rect x="760" y="285" width="345" height="92" rx="28" fill="#fffdf7" stroke="#11120e" stroke-opacity="0.12"/>
+    <text x="798" y="325" fill="#77796e" font-family="Arial, sans-serif" font-size="18" font-weight="700">Daily cap</text>
+    <text x="798" y="358" fill="#11120e" font-family="Arial, sans-serif" font-size="38" font-weight="800">100 actions</text>
+    <rect x="865" y="415" width="240" height="92" rx="28" fill="#11120e"/>
+    <text x="903" y="455" fill="#d7f2bf" font-family="Arial, sans-serif" font-size="18" font-weight="700">Status</text>
+    <text x="903" y="488" fill="#fffdf7" font-family="Arial, sans-serif" font-size="38" font-weight="800">Protected</text>
+  </g>
+</svg>

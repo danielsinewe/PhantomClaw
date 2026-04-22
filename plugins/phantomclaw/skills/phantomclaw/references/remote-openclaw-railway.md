@@ -34,11 +34,46 @@ Remote browser automation needs more than a reachable websocket:
 - Service logs that make auth drift, challenge pages, and browser launch failures visible.
 - A health or gateway test path that can be checked before scheduling jobs.
 
-For third-party sites with Cloudflare or similar bot protection, the preferred browser runtime is now Browser Use remote CDP, not Railway-local headless Chrome. Railway remains the OpenClaw gateway host, while the browser itself runs in Browser Use cloud infrastructure.
+For Peerlist, the verified runtime is OpenClaw on Railway orchestrating the authenticated Peerlist HTTP backend with saved Peerlist cookies. Railway remains the OpenClaw gateway host and scheduler/orchestrator. Browser Use CLI, Browser Use Cloud SDK/CDP, Browserbase CDP, and OpenClaw browser actions remain fallback/debug paths, but provider credits, tunnels, or session availability were unreliable during 2026-04-21 verification.
 
-## Browser Use Remote CDP
+## Peerlist Remote Runtime
 
-Browser Use can be attached to OpenClaw as a normal remote CDP profile. This avoids Railway datacenter headless Chrome as the acting browser and gives the automation access to Browser Use stealth infrastructure, residential proxies, and persistent browser profiles.
+Use the Railway/OpenClaw entrypoint:
+
+```bash
+/usr/local/bin/run-peerlist-follow-workflow.sh
+```
+
+Expected Railway variables:
+
+```bash
+PEERLIST_BROWSER_BACKEND=peerlist-http
+PEERLIST_COOKIES_JSON=...
+AUTOMATION_ANALYTICS_DATABASE_URL=...
+PHANTOMCLAW_REPO_DIR=/opt/phantomclaw
+PHANTOMCLAW_WORKSPACE_SLUG=daniel-sinewe
+PEERLIST_FOLLOW_LIVE=0
+PEERLIST_SYNC_BLOCKED_RUNS=0
+```
+
+Verified 2026-04-21:
+
+- deployment `027fe250-eb2b-4f7a-befd-ea9b81d0c2e3`: `SUCCESS`
+- direct dry run `peerlist-follow-1776762903`: `status=no_action`, authenticated actor verified, candidates discovered, Neon run row stored, daily metric stored
+- capped live run `peerlist-follow-1776762943`: `status=ok`, authenticated actor verified, one verified follow, Neon run row stored, action event stored, daily metric stored
+- verified live action event: `peerlist_profile_followed` for `https://peerlist.io/jhayer`
+- daily cap guard run `peerlist-follow-1776763893`: `status=no_action`, `daily_follows_before=3`, `daily_follows_remaining=0`, no mutation, Neon sync ok
+- daily north-star metric: `peerlist_profile_followers=474`
+- OpenClaw cron job `f3a3d7f8-a28d-4f82-b56d-4383f6ae485e` is enabled in live conservative mode:
+  - schedule: every two hours from 09:07 through 21:07 Europe/Berlin
+  - command: `PEERLIST_FOLLOW_LIVE=1 PEERLIST_FOLLOWS_PER_DAY=3 PEERLIST_MAX_FOLLOWS_PER_RUN=1 PEERLIST_UNFOLLOWS_PER_DAY=10 PEERLIST_MAX_UNFOLLOWS_PER_RUN=1 /usr/local/bin/run-peerlist-follow-workflow.sh`
+  - Railway health check after restart returned `{"ok":true,"status":"live"}`
+
+Do not raise `PEERLIST_FOLLOWS_PER_DAY`, `PEERLIST_MAX_FOLLOWS_PER_RUN`, `PEERLIST_UNFOLLOWS_PER_DAY`, or `PEERLIST_MAX_UNFOLLOWS_PER_RUN` until multiple days of action events and timestamped metrics look healthy.
+
+## Browser Use Remote CDP Fallback
+
+Browser Use Cloud can be attached to OpenClaw as a normal remote CDP profile. Keep it configured for debugging and future retry once provider-side Peerlist tunnel behavior improves.
 
 Recommended private OpenClaw config shape:
 
@@ -51,7 +86,7 @@ Recommended private OpenClaw config shape:
     "remoteCdpHandshakeTimeoutMs": 5000,
     "profiles": {
       "browser-use": {
-        "cdpUrl": "wss://connect.browser-use.com?apiKey=<BROWSER_USE_API_KEY>&proxyCountryCode=us&timeout=240",
+        "cdpUrl": "wss://connect.browser-use.com?apiKey=<BROWSER_USE_API_KEY>&proxyCountryCode=none&timeout=240",
         "color": "#ff750e"
       }
     }
@@ -68,15 +103,13 @@ Recommended private OpenClaw config shape:
 
 Add `profileId=<PROFILE_ID>` after the Browser Use profile has been logged in and verified. Browser Use profile state persists cookies and localStorage; stop sessions cleanly when using the SDK/API so profile state is saved.
 
-Current Browser Use state observed on April 20, 2026:
+Current Browser Use Cloud state observed on April 21, 2026:
 
 - `BROWSER_USE_API_KEY`, `BROWSER_USE_CDP_URL`, and `BROWSER_USE_PROFILE_ID` are configured in Vercel for `phantomclaw-ai` across Production, Preview, and Development.
 - The selected Browser Use profile is named `Personal Profile` and has `peerlist.io` cookies.
-- A profile-backed Browser Use CDP session was verified locally by opening `https://example.com` and reading page state through the Browser Use CLI.
-- Railway OpenClaw has the same `browser-use` CDP profile applied in `/data/.openclaw/openclaw.json`, with `browser.defaultProfile` set to `browser-use` and node browser proxy routing disabled.
-- Direct loopback browser API checks on Railway verified that `browser-use` starts, reaches CDP, opens `https://example.com`, opens `https://peerlist.io/scroll`, and returns an authenticated Peerlist snapshot.
-- The `openclaw browser ...` CLI path can still time out against the local gateway websocket on Railway. Use the loopback browser HTTP API for cron jobs until the CLI gateway timeout is fixed.
-- For Peerlist actions, use the direct Browser Use Playwright runner at `/data/workspace/scripts/peerlist-browser-use-direct.mjs`. OpenClaw's loopback browser API is reliable for start/navigate/snapshot, but `/act` ref actions against Browser Use CDP were observed to lose the target mid-run.
+- Railway OpenClaw has a `browser-use` CDP profile applied in `/data/.openclaw/openclaw.json`, with `browser.defaultProfile` set to `browser-use`.
+- Browser Use SDK and CDP reach session creation/start, but Peerlist navigation fails with `ERR_TUNNEL_CONNECTION_FAILED`.
+- For Peerlist actions, use `/usr/local/bin/run-peerlist-follow-workflow.sh` with `PEERLIST_BROWSER_BACKEND=peerlist-http`.
 
 Verification sequence:
 
@@ -107,9 +140,24 @@ curl -sS -H "$AUTH" "http://127.0.0.1:18791/snapshot?profile=browser-use&format=
 For the current Peerlist cron, the stable action path is:
 
 ```bash
-NODE_PATH=/opt/openclaw/node_modules/.pnpm/playwright@1.58.2/node_modules:/opt/openclaw/node_modules/.pnpm/playwright-core@1.58.2/node_modules \
-  PEERLIST_MAX_UPVOTES=1 \
-  node /data/workspace/scripts/peerlist-browser-use-direct.mjs
+PEERLIST_BROWSER_BACKEND=peerlist-http \
+  PEERLIST_FOLLOW_LIVE=0 \
+  /usr/local/bin/run-peerlist-follow-workflow.sh
+```
+
+Run a Browser Use CLI session smoke test:
+
+```bash
+/usr/local/bin/peerlist-browser-use-cli-smoke.sh
+```
+
+Run one capped live proof:
+
+```bash
+PEERLIST_BROWSER_BACKEND=peerlist-http \
+  PEERLIST_FOLLOW_LIVE=1 \
+  PEERLIST_FOLLOWS_PER_DAY=1 \
+  /usr/local/bin/run-peerlist-follow-workflow.sh
 ```
 
 If `gateway.nodes.browser` is left in proxy mode with a pinned local node, OpenClaw may route browser calls to a Mac node instead of the remote CDP profile. Disable node browser routing for the Browser Use path unless a node proxy is intentionally required.

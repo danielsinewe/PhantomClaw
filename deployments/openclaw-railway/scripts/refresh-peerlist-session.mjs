@@ -69,9 +69,10 @@ if (!SKIP_PROFILE_SYNC) {
     throw new Error("Browser Use profile sync did not print a profile id");
   }
   browserUseProfileId = profileMatch[1];
+  const proxyCountryCode = vars.BROWSER_USE_PROXY_COUNTRY_CODE || "de";
   const cdpUrl = `wss://connect.browser-use.com?apiKey=${encodeURIComponent(
     browserUseApiKey,
-  )}&profileId=${encodeURIComponent(browserUseProfileId)}&proxyCountryCode=us&timeout=240`;
+  )}&profileId=${encodeURIComponent(browserUseProfileId)}&proxyCountryCode=${encodeURIComponent(proxyCountryCode)}&timeout=240`;
   setRailwayVariable("BROWSER_USE_PROFILE_ID", browserUseProfileId);
   setRailwayVariable("BROWSER_USE_CDP_URL", cdpUrl);
 }

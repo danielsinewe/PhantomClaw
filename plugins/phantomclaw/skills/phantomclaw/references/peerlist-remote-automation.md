@@ -55,28 +55,30 @@ Skip when:
 Use the direct Railway runner for remote Peerlist runs:
 
 ```bash
-NODE_PATH=/opt/openclaw/node_modules/.pnpm/playwright@1.58.2/node_modules:/opt/openclaw/node_modules/.pnpm/playwright-core@1.58.2/node_modules \
-  PEERLIST_MAX_UPVOTES=1 \
-  node /data/workspace/scripts/peerlist-browser-use-direct.mjs
+/usr/local/bin/run-peerlist-follow-workflow.sh
 ```
 
 Current provider order:
 
-1. Browserbase CDP with `PEERLIST_COOKIES_JSON` from the logged-in local Chrome profile.
-2. Browser Use CDP as fallback.
+1. Peerlist authenticated HTTP backend with `PEERLIST_COOKIES_JSON`.
+2. Browser Use CLI, Browser Use CDP/SDK, Browserbase CDP, or OpenClaw browser actions as fallback/debug paths.
 
-Why: Browser Use raw CDP repeatedly failed Peerlist navigation from Railway with `net::ERR_TUNNEL_CONNECTION_FAILED`, while Browserbase CDP with fresh Peerlist cookies verified Daniel and completed capped actions.
+Why: the Peerlist HTTP backend verified Daniel and synced Neon from Railway/OpenClaw on 2026-04-21 without depending on Railway headless Chrome or hosted browser-provider availability. Browser Use and Browserbase paths hit provider-side tunnel, billing, credit, or session constraints during the latest verification.
 
-For healthchecks, run without engagement:
+For a dry-run healthcheck/discovery pass, leave live mode off:
 
 ```bash
-NODE_PATH=/opt/openclaw/node_modules/.pnpm/playwright@1.58.2/node_modules:/opt/openclaw/node_modules/.pnpm/playwright-core@1.58.2/node_modules \
-  PEERLIST_HEALTHCHECK=1 \
-  PEERLIST_MAX_UPVOTES=0 \
-  node /data/workspace/scripts/peerlist-browser-use-direct.mjs
+/usr/local/bin/run-peerlist-follow-workflow.sh
 ```
 
-The healthcheck verifies provider connection, authenticated actor identity, page shape, visible upvote controls, artifact writes, and PhantomClaw/Neon sync. It never clicks.
+The dry run verifies provider connection, authenticated actor identity, visible follow candidates, artifact writes, and Neon sync. It never clicks.
+
+For a capped live proof:
+
+```bash
+PEERLIST_FOLLOW_LIVE=1 PEERLIST_FOLLOWS_PER_DAY=1 \
+  /usr/local/bin/run-peerlist-follow-workflow.sh
+```
 
 To refresh the remote session from local Chrome:
 
@@ -88,14 +90,13 @@ The refresh helper syncs the local `danielsinewe.com` Chrome profile to Browser 
 
 Do not fall back to Railway-local headless Chrome for Peerlist engagement. If the provider is unavailable, logged out, challenged, or cannot confirm actor identity, fail closed and report the blocker.
 
-The runner lives in this repo at `deployments/openclaw-railway/scripts/peerlist-browser-use-direct.mjs` and is copied to `/data/workspace/scripts/peerlist-browser-use-direct.mjs` on the Railway OpenClaw service.
+The default follow workflow runner lives in this repo at `scripts/run_peerlist_follow_http.py`, is staged into the Railway image at `/opt/phantomclaw`, and is wrapped by `/usr/local/bin/run-peerlist-follow-workflow.sh`.
 
 The runner stores:
 
 - normalized run bundle sync through PhantomClaw,
 - JSONL run logs on the Railway volume,
-- before/after screenshots under the Peerlist artifact directory,
-- `browser_provider`, `provider_failures`, `healthcheck`, and `failure_category` metadata.
+- `browser_provider` metadata.
 
 It also skips recently acted posts using the recent action keys in the JSONL log.
 
@@ -106,11 +107,11 @@ openclaw browser --browser-profile browser-use open https://peerlist.io/scroll
 openclaw browser --browser-profile browser-use snapshot --interactive
 ```
 
-But do not use OpenClaw `/act` for this Peerlist cron yet:
+But do not use OpenClaw `/act` as the primary Peerlist cron path yet:
 
-- OpenClaw's loopback browser API can start Browser Use CDP, navigate, and snapshot reliably.
-- OpenClaw `/act` ref actions against the Browser Use CDP session were observed to close or lose the target mid-run.
-- Direct Playwright `connectOverCDP` is the verified execution path.
+- Hosted browser paths were unreliable during the latest Railway checks.
+- The HTTP backend is the verified scheduled execution path.
+- Browser sessions remain useful for visual debugging, screenshots, and login/session repair.
 
 ## Safe Posting Run
 

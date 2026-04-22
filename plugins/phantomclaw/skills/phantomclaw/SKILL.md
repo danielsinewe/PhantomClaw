@@ -17,6 +17,8 @@ PhantomClaw is split into three surfaces:
 - `phantomclaw-cli`: private authenticated CLI for login, workspace selection, and run-bundle sync.
 - `phantomclaw.ai`: private control plane for account, dashboard, and hosted storage.
 
+Product direction: PhantomClaw should be a cloud-based, AI-agent-focused automation platform with reusable open-source-like automation bundles. The hosted platform can stay private, but bundle code, skills, schemas, fixtures, and examples should be inspectable, forkable, versioned, testable, and portable. Use `references/product-blueprint.md` for positioning and bundle standards.
+
 OpenClaw is the browser gateway/runtime that can run locally or remotely. The current Railway inventory includes a `content-friendship` project with `OpenClaw`, `Paperclip`, and `Postgres` services. The observed remote gateway is:
 
 ```text
@@ -33,7 +35,7 @@ Before running a remote automation:
 2. Confirm transport is `Direct (ws/wss)` for Railway and uses `wss://`.
 3. Test the remote gateway and verify token auth succeeds.
 4. Confirm the selected remote browser profile has an authenticated platform session.
-5. Prefer Browser Use remote CDP for third-party sites with bot protection; use Railway-local Chrome only for low-risk/internal pages or debugging.
+5. For scheduled Peerlist automations, run orchestration on OpenClaw/Railway and use the authenticated Peerlist HTTP backend with saved cookies as the default runner. Browser Use CLI, Browser Use Cloud, Browserbase CDP, and OpenClaw browser actions remain fallback/debug paths until provider credits and tunnel reliability are resolved.
 6. Use strict caps, jitter, and fail-closed checks.
 7. Return concise run logs with links, actions, and skip reasons.
 
@@ -88,11 +90,42 @@ The public automation repo currently has LinkedIn runners and the `phantomclaw.r
 - metrics adapter and run-bundle support,
 - tests with fixtures before live execution.
 
-Until that exists, use Codex Cron plus remote OpenClaw browser automation for Peerlist.
+For Peerlist, run the scheduler/orchestrator on OpenClaw/Railway. The verified default execution path is the Railway-hosted authenticated Peerlist HTTP backend with `PEERLIST_COOKIES_JSON`.
 
-## Browser Use Remote CDP
+## Peerlist Remote Backend
 
-For remote browser automations, especially Peerlist or other Cloudflare-protected sites, use Browser Use as the primary browser runtime instead of Railway-hosted headless Chrome. Browser Use provides a remote CDP endpoint, stealth browser infrastructure, residential proxies, live preview, and persistent profile support.
+For Peerlist, use OpenClaw on Railway as the runtime/scheduler host and the authenticated Peerlist HTTP backend instead of Railway-hosted headless Chrome. This avoids Cloudflare-sensitive headless browser navigation while keeping orchestration remote.
+
+Expected Railway entrypoint:
+
+```bash
+/usr/local/bin/run-peerlist-follow-workflow.sh
+```
+
+Expected backend variables:
+
+```bash
+PEERLIST_BROWSER_BACKEND=peerlist-http
+PEERLIST_COOKIES_JSON=...
+AUTOMATION_ANALYTICS_DATABASE_URL=...
+PEERLIST_FOLLOW_LIVE=0
+PEERLIST_SYNC_BLOCKED_RUNS=0
+```
+
+Verified 2026-04-21 from Railway/OpenClaw:
+
+- deployment `c9ddd507-cf23-45ff-ab5f-9cc8c6ba5976` reached `SUCCESS`
+- direct dry-run `peerlist-follow-1776760375` returned `status=no_action`
+- OpenClaw cron dry-run `peerlist-follow-1776760597` returned `status=no_action`
+- `actor_verified=true`
+- Peerlist follower count was read as `474`
+- run facts and the daily north-star metric synced to Neon/Postgres
+
+Browser Use Cloud and Browserbase remain configured as fallback/debug paths, but Railway verification on 2026-04-21 hit provider-side tunnel, billing, or credit constraints.
+
+## Browser Use Remote CDP Fallback
+
+Browser Use provides a remote CDP endpoint and Cloud Agent SDK, stealth browser infrastructure, residential proxies, live preview, and persistent profile support.
 
 Configure OpenClaw with a `browser-use` profile and make it the default remote browser:
 
@@ -105,7 +138,7 @@ Configure OpenClaw with a `browser-use` profile and make it the default remote b
     "remoteCdpHandshakeTimeoutMs": 5000,
     "profiles": {
       "browser-use": {
-        "cdpUrl": "wss://connect.browser-use.com?apiKey=<BROWSER_USE_API_KEY>&proxyCountryCode=us&timeout=240",
+        "cdpUrl": "wss://connect.browser-use.com?apiKey=<BROWSER_USE_API_KEY>&proxyCountryCode=none&timeout=240",
         "color": "#ff750e"
       }
     }
@@ -123,7 +156,7 @@ Configure OpenClaw with a `browser-use` profile and make it the default remote b
 Use a `profileId` query parameter once a logged-in Browser Use profile exists:
 
 ```text
-wss://connect.browser-use.com?apiKey=<BROWSER_USE_API_KEY>&profileId=<PROFILE_ID>&proxyCountryCode=us&timeout=240
+wss://connect.browser-use.com?apiKey=<BROWSER_USE_API_KEY>&profileId=<PROFILE_ID>&proxyCountryCode=none&timeout=240
 ```
 
 Never commit real Browser Use API keys, CDP URLs, gateway tokens, or profile IDs. Store app-facing values in Vercel/Railway environment variables and keep OpenClaw runtime config private.
@@ -162,3 +195,5 @@ Use `references/peerlist-follow-workflow.md` for the first Peerlist workflow aut
 - surface: `network`
 - north-star metric: `peerlist_profile_followers`
 - parameters: follow/unfollow type, daily caps, unfollow age, and peer-preservation behavior
+
+This is the first canonical PhantomClaw automation bundle. It should be treated as the reference implementation for the bundle model: dry-run default, explicit live mode, per-run cap, daily cap, verified action events, daily north-star metric snapshots, fixtures/tests, and remote cloud execution through OpenClaw/Railway.

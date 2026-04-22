@@ -1,0 +1,60 @@
+{
+  "run_id": "peerlist-follow-fixture-ok",
+  "started_at": "2026-04-21T09:15:43.324904+00:00",
+  "finished_at": "2026-04-21T09:15:46.451712+00:00",
+  "status": "ok",
+  "stop_reason": null,
+  "profile_name": "Daniel",
+  "actor_verified": true,
+  "workflow_type": "follow",
+  "workflow_parameters": {
+    "type": "follow",
+    "follows_per_day": 3,
+    "max_follows_per_run": 1,
+    "unfollows_per_day": 10,
+    "unfollow_after_days": 14,
+    "do_not_unfollow_peers": true
+  },
+  "peerlist_profile_followers_before": 474,
+  "peerlist_profile_followers_after": 474,
+  "profiles_scanned": 10,
+  "profiles_considered": 1,
+  "follows_count": 1,
+  "unfollows_count": 0,
+  "peers_preserved_count": 2,
+  "daily_follows_before": 2,
+  "daily_follows_remaining": 1,
+  "actions": [
+    {
+      "type": "follow",
+      "target_name": "Johannes Hayer",
+      "target_handle": "jhayer",
+      "target_url": "https://peerlist.io/jhayer",
+      "target_id": "UH6AJBGQ68ORARGI7EKBLD8LRQMM",
+      "verified": true,
+      "api_success": true,
+      "relationship_after": {
+        "follower": {
+          "lists": []
+        },
+        "following": false,
+        "peer": false,
+        "isPeers": false
+      }
+    }
+  ],
+  "events": [
+    {
+      "ts": "2026-04-21T09:15:46.217838+00:00",
+      "type": "peerlist_profile_followed",
+      "target_name": "Johannes Hayer",
+      "target_handle": "jhayer",
+      "target_url": "https://peerlist.io/jhayer",
+      "verified": true
+    }
+  ],
+  "skipped": [],
+  "blockers": [],
+  "browser_provider": "peerlist-http",
+  "search_url": "https://peerlist.io/api/v2/scroll/feed?numUpvoteProfiles=3&numComments=2&newest=true"
+}

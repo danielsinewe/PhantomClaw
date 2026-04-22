@@ -1,5 +1,22 @@
 # PhantomClaw Product Topology
 
+## Product Direction
+
+PhantomClaw should be a cloud-based, AI-agent-focused automation platform with reusable automation bundles.
+
+The platform itself can remain private. The automation bundles should feel open-source-like:
+
+- inspectable,
+- forkable,
+- versioned,
+- testable,
+- portable across runtimes,
+- documented with clear parameters, permissions, safety gates, and metrics.
+
+The first canonical bundle is `peerlist-follow-workflow`, a Peerlist follow/unfollow workflow whose north-star metric is the authenticated user's own follower count: `peerlist_profile_followers`.
+
+See `product-blueprint.md` for the full positioning and bundle standard.
+
 ## Repositories
 
 `/Users/danielsinewe/Documents/GitHub/Automations`
@@ -28,5 +45,12 @@ The public runner should not require direct access to the hosted control-plane d
 - `linkedin.company_profile_engagement`
 - `linkedin.sales_community_engagement`
 
-Peerlist is currently documented as a remote OpenClaw/Codex Cron playbook, not yet a first-class OSS runner.
+Peerlist follow/unfollow is now the first canonical workflow bundle direction:
 
+- `automation_name`: `peerlist-follow-workflow`
+- `platform`: `peerlist`
+- `surface`: `network`
+- `north_star_metric`: `peerlist_profile_followers`
+- verified runtime: OpenClaw on Railway
+- verified backend: authenticated Peerlist HTTP APIs
+- storage: `phantomclaw.run-bundle.v1`, action events, and daily north-star metrics

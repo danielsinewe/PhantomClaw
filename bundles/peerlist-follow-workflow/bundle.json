@@ -1,0 +1,101 @@
+{
+  "$schema": "./schema.json",
+  "name": "peerlist-follow-workflow",
+  "label": "Peerlist Follow/Unfollow",
+  "version": "0.1.0",
+  "platform": "peerlist",
+  "surface": "network",
+  "category": "audience-growth",
+  "kind": "workflow",
+  "north_star_metric": "peerlist_profile_followers",
+  "description": "Grow an authenticated Peerlist profile by following selected profiles, preserving peers, and recording own-follower count as the north-star metric.",
+  "default_mode": "dry-run",
+  "risk_level": "medium",
+  "actions": [
+    "peerlist_profile_followed",
+    "peerlist_profile_unfollowed"
+  ],
+  "runtimes": [
+    "openclaw-railway",
+    "browser-use-cloud",
+    "browserbase-cdp",
+    "self-hosted"
+  ],
+  "permissions": [
+    "read_authenticated_peerlist_profile",
+    "read_peerlist_feed_candidates",
+    "read_peerlist_relationships",
+    "follow_peerlist_profiles",
+    "unfollow_peerlist_profiles",
+    "write_run_bundle",
+    "write_action_events",
+    "write_daily_metrics"
+  ],
+  "secrets": [
+    "PEERLIST_COOKIES_JSON",
+    "AUTOMATION_ANALYTICS_DATABASE_URL"
+  ],
+  "optional_secrets": [
+    "BROWSER_USE_API_KEY",
+    "BROWSER_USE_PROFILE_ID",
+    "BROWSER_USE_WORKSPACE_ID",
+    "BROWSERBASE_API_KEY"
+  ],
+  "runner": {
+    "entrypoint": "/usr/local/bin/run-peerlist-follow-workflow.sh",
+    "source": "scripts/run_peerlist_follow_http.py",
+    "default_backend": "peerlist-http",
+    "verified_runtime": "openclaw-railway"
+  },
+  "parameters": {
+    "type": "follow",
+    "follows_per_day": 3,
+    "max_follows_per_run": 1,
+    "unfollows_per_day": 10,
+    "max_unfollows_per_run": 1,
+    "unfollow_source": "workflow_history",
+    "unfollow_after_days": 14,
+    "do_not_unfollow_peers": true,
+    "do_not_unfollow_followers": true,
+    "active_window_start": "09:00",
+    "active_window_end": "21:00",
+    "min_delay_seconds": 45,
+    "max_delay_seconds": 180,
+    "error_backoff_seconds": 900,
+    "candidate_pool_limit": 50,
+    "require_verified_profile": false,
+    "skip_existing_following": true,
+    "skip_existing_followers": false,
+    "skip_peers": true,
+    "profile_blacklist": [],
+    "profile_whitelist": [],
+    "following_page_start": 1,
+    "following_page_limit": 30
+  },
+  "safety": {
+    "dry_run_default": true,
+    "explicit_live_flag": "PEERLIST_FOLLOW_LIVE=1",
+    "daily_cap_source": "automation_action_events_v1",
+    "per_run_cap_parameter": "max_follows_per_run",
+    "daily_cap_parameter": "follows_per_day",
+    "unfollow_per_run_cap_parameter": "max_unfollows_per_run",
+    "unfollow_daily_cap_parameter": "unfollows_per_day",
+    "preserve_peers": true,
+    "post_action_verification": true,
+    "fail_closed_on_challenge": true,
+    "fail_closed_on_actor_mismatch": true
+  },
+  "outputs": {
+    "run_bundle_schema": "phantomclaw.run-bundle.v1",
+    "run_facts": "automation_runs",
+    "action_events": "automation_action_events_v1",
+    "daily_metrics": "automation_daily_metrics_v1"
+  },
+  "links": {
+    "bundle_skill": "./SKILL.md",
+    "skill": "../../plugins/phantomclaw/skills/phantomclaw/SKILL.md",
+    "workflow_reference": "../../plugins/phantomclaw/skills/phantomclaw/references/peerlist-follow-workflow.md",
+    "product_blueprint": "../../plugins/phantomclaw/skills/phantomclaw/references/product-blueprint.md",
+    "standard_format": "../../docs/automation-standard-format.md"
+  }
+}

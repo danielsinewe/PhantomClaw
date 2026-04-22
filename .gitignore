@@ -9,6 +9,8 @@
 skills-lock.json
 __pycache__/
 artifacts/
+dist/
 *.pyc
 *.pyo
 *.sqlite3
+.vercel

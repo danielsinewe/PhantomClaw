@@ -137,10 +137,15 @@ class AutomationAnalyticsTests(unittest.TestCase):
 
     def test_daily_metrics_schema_tracks_north_star_snapshots(self) -> None:
         self.assertIn("automation_daily_metrics", NORTH_STAR_DAILY_METRICS_TABLE_SCHEMA)
+        self.assertIn("snapshot_id BIGSERIAL", NORTH_STAR_DAILY_METRICS_TABLE_SCHEMA)
         self.assertIn("metric_date DATE NOT NULL", NORTH_STAR_DAILY_METRICS_TABLE_SCHEMA)
         self.assertIn("metric_value NUMERIC NOT NULL", NORTH_STAR_DAILY_METRICS_TABLE_SCHEMA)
-        self.assertIn("PRIMARY KEY", NORTH_STAR_DAILY_METRICS_TABLE_SCHEMA)
+        self.assertNotIn("PRIMARY KEY", NORTH_STAR_DAILY_METRICS_TABLE_SCHEMA)
+        self.assertIn("DROP CONSTRAINT IF EXISTS automation_daily_metrics_pkey", NORTH_STAR_DAILY_METRICS_TABLE_SCHEMA)
         self.assertIn("automation_daily_metrics_v1", NORTH_STAR_DAILY_METRICS_VIEW_SCHEMA)
+        self.assertIn("automation_daily_metric_daily_latest_v1", NORTH_STAR_DAILY_METRICS_VIEW_SCHEMA)
+        self.assertIn("captured_at_ts", NORTH_STAR_DAILY_METRICS_VIEW_SCHEMA)
+        self.assertIn("snapshot_delta", NORTH_STAR_DAILY_METRICS_VIEW_SCHEMA)
         self.assertIn("daily_delta", NORTH_STAR_DAILY_METRICS_VIEW_SCHEMA)
 
     def test_action_events_view_schema_exposes_verified(self) -> None:

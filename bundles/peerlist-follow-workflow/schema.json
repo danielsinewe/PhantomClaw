@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phantomclaw.ai/bundles/peerlist-follow-workflow/schema.json",
+  "title": "Peerlist Follow/Unfollow Bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "label",
+    "version",
+    "platform",
+    "surface",
+    "category",
+    "kind",
+    "north_star_metric",
+    "actions",
+    "runtimes",
+    "permissions",
+    "runner",
+    "parameters",
+    "safety",
+    "outputs"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "name": { "const": "peerlist-follow-workflow" },
+    "label": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "platform": { "const": "peerlist" },
+    "surface": { "const": "network" },
+    "category": { "const": "audience-growth" },
+    "kind": { "const": "workflow" },
+    "north_star_metric": { "const": "peerlist_profile_followers" },
+    "description": { "type": "string" },
+    "default_mode": { "enum": ["dry-run", "live"] },
+    "risk_level": { "enum": ["low", "medium", "high"] },
+    "actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "enum": [
+          "peerlist_profile_followed",
+          "peerlist_profile_unfollowed"
+        ]
+      }
+    },
+    "runtimes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "enum": [
+          "openclaw-railway",
+          "browser-use-cloud",
+          "browserbase-cdp",
+          "self-hosted"
+        ]
+      }
+    },
+    "permissions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "secrets": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "optional_secrets": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "runner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entrypoint", "source", "default_backend", "verified_runtime"],
+      "properties": {
+        "entrypoint": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1 },
+        "default_backend": { "const": "peerlist-http" },
+        "verified_runtime": { "const": "openclaw-railway" }
+      }
+    },
+    "parameters": {
+      "$ref": "#/$defs/parameters"
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dry_run_default",
+        "explicit_live_flag",
+        "daily_cap_source",
+        "per_run_cap_parameter",
+        "daily_cap_parameter",
+        "preserve_peers",
+        "post_action_verification",
+        "fail_closed_on_challenge",
+        "fail_closed_on_actor_mismatch"
+      ],
+      "properties": {
+        "dry_run_default": { "const": true },
+        "explicit_live_flag": { "const": "PEERLIST_FOLLOW_LIVE=1" },
+        "daily_cap_source": { "const": "automation_action_events_v1" },
+        "per_run_cap_parameter": { "const": "max_follows_per_run" },
+        "daily_cap_parameter": { "const": "follows_per_day" },
+        "preserve_peers": { "const": true },
+        "post_action_verification": { "const": true },
+        "fail_closed_on_challenge": { "const": true },
+        "fail_closed_on_actor_mismatch": { "const": true }
+      }
+    },
+    "outputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_bundle_schema", "run_facts", "action_events", "daily_metrics"],
+      "properties": {
+        "run_bundle_schema": { "const": "phantomclaw.run-bundle.v1" },
+        "run_facts": { "const": "automation_runs" },
+        "action_events": { "const": "automation_action_events_v1" },
+        "daily_metrics": { "const": "automation_daily_metrics_v1" }
+      }
+    },
+    "links": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "follows_per_day",
+        "max_follows_per_run",
+        "unfollows_per_day",
+        "max_unfollows_per_run",
+        "unfollow_source",
+        "unfollow_after_days",
+        "do_not_unfollow_peers",
+        "do_not_unfollow_followers",
+        "active_window_start",
+        "active_window_end",
+        "min_delay_seconds",
+        "max_delay_seconds",
+        "error_backoff_seconds",
+        "candidate_pool_limit",
+        "require_verified_profile",
+        "skip_existing_following",
+        "skip_existing_followers",
+        "skip_peers",
+        "profile_blacklist",
+        "profile_whitelist",
+        "following_page_start",
+        "following_page_limit"
+      ],
+      "properties": {
+        "type": { "enum": ["follow", "unfollow", "rebalance"] },
+        "follows_per_day": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "max_follows_per_run": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "unfollows_per_day": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "max_unfollows_per_run": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "unfollow_source": { "enum": ["workflow_history", "current_following"] },
+        "unfollow_after_days": { "type": "integer", "minimum": 1, "maximum": 365 },
+        "do_not_unfollow_peers": { "type": "boolean" },
+        "do_not_unfollow_followers": { "type": "boolean" },
+        "active_window_start": { "type": "string", "pattern": "^\\d{2}:\\d{2}$" },
+        "active_window_end": { "type": "string", "pattern": "^\\d{2}:\\d{2}$" },
+        "min_delay_seconds": { "type": "integer", "minimum": 0 },
+        "max_delay_seconds": { "type": "integer", "minimum": 0 },
+        "error_backoff_seconds": { "type": "integer", "minimum": 0 },
+        "candidate_pool_limit": { "type": "integer", "minimum": 1, "maximum": 500 },
+        "require_verified_profile": { "type": "boolean" },
+        "skip_existing_following": { "type": "boolean" },
+        "skip_existing_followers": { "type": "boolean" },
+        "skip_peers": { "type": "boolean" },
+        "profile_blacklist": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "profile_whitelist": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "following_page_start": { "type": "integer", "minimum": 1 },
+        "following_page_limit": { "type": "integer", "minimum": 1, "maximum": 500 }
+      }
+    }
+  }
+}

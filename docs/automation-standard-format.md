@@ -1,5 +1,19 @@
 # Automation Standard Format
 
+PhantomClaw automations are reusable bundles. The hosted platform can remain private, but bundles should be open-source-like: inspectable, forkable, versioned, testable, and portable across cloud runtimes.
+
+Every bundle should define:
+
+- stable automation identity,
+- parameter schema,
+- required permissions/secrets,
+- supported runtimes,
+- safety gates,
+- action-event types,
+- north-star metric,
+- fixtures and tests,
+- dry-run and live-run examples.
+
 Every PhantomClaw automation should produce a `phantomclaw.run-bundle.v1` payload with the same top-level sections:
 
 ```json
@@ -29,7 +43,9 @@ The automation section identifies the durable product contract, not one specific
   "parameters": {
     "type": "follow",
     "follows_per_day": 20,
+    "max_follows_per_run": 1,
     "unfollows_per_day": 10,
+    "max_unfollows_per_run": 1,
     "unfollow_after_days": 14,
     "do_not_unfollow_peers": true
   }
@@ -98,7 +114,9 @@ Platform-specific details go in `metrics_json`. For Peerlist follow workflow:
   "workflow_parameters": {
     "type": "follow",
     "follows_per_day": 20,
+    "max_follows_per_run": 1,
     "unfollows_per_day": 10,
+    "max_unfollows_per_run": 1,
     "unfollow_after_days": 14,
     "do_not_unfollow_peers": true
   },
@@ -122,7 +140,7 @@ Dashboard views should expose these Peerlist workflow fields as normal columns:
 - `skipped_count`
 - `blockers_count`
 
-North-star metrics should also be captured as daily absolute snapshots in a separate table:
+North-star metrics should also be captured as append-only timestamped absolute snapshots in a separate table:
 
 ```json
 {
@@ -131,11 +149,12 @@ North-star metrics should also be captured as daily absolute snapshots in a sepa
   "metric_name": "peerlist_profile_followers",
   "metric_date": "2026-04-20",
   "metric_value": 474,
+  "captured_at": "2026-04-20T15:02:00+00:00",
   "source": "cron"
 }
 ```
 
-Use the per-run `metrics_json.peerlist_profile_followers_delta` for run attribution and debugging. Use the daily snapshot table for trend charts and north-star reporting.
+Use the per-run `metrics_json.peerlist_profile_followers_delta` for run attribution and debugging. Use `automation_daily_metrics_v1.captured_at_ts` for timestamped trend charts and north-star reporting. Use `metric_date` only when grouping snapshots by day.
 
 ## Action Events
 
