@@ -31,7 +31,7 @@ The current production backend uses authenticated Peerlist HTTP APIs with saved 
   "type": "follow",
   "follows_per_day": 3,
   "max_follows_per_run": 1,
-  "unfollows_per_day": 10,
+  "unfollows_per_day": 1000,
   "max_unfollows_per_run": 1,
   "unfollow_source": "workflow_history",
   "unfollow_after_days": 14,

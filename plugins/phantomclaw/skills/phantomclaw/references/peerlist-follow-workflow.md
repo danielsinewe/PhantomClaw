@@ -29,7 +29,7 @@ The workflow tries to increase the authenticated Peerlist profile follower count
   "type": "follow",
   "follows_per_day": 20,
   "max_follows_per_run": 1,
-  "unfollows_per_day": 10,
+  "unfollows_per_day": 1000,
   "unfollow_after_days": 14,
   "do_not_unfollow_peers": true,
   "active_window_start": "09:00",
@@ -71,7 +71,7 @@ Launch frequency is separate from action caps. Match the Phantombuster-style pre
 - advanced cron
 - after another workflow
 
-The verified Railway setup currently uses a conservative repeated launch: every two hours from 09:07 through 21:07 Europe/Berlin, with `follows_per_day=3`, `max_follows_per_run=1`, `unfollows_per_day=10`, and `max_unfollows_per_run=1`.
+The verified Railway setup currently uses a repeated launch every two hours from 09:07 through 21:07 Europe/Berlin, with `follows_per_day=3`, `max_follows_per_run=1`, `unfollows_per_day=1000`, and `max_unfollows_per_run=1`.
 
 ## Run Metrics
 
@@ -87,7 +87,7 @@ Store these in `metrics_json`:
   "workflow_parameters": {
     "type": "follow",
     "follows_per_day": 20,
-    "unfollows_per_day": 10,
+    "unfollows_per_day": 1000,
     "unfollow_after_days": 14,
     "do_not_unfollow_peers": true
   },

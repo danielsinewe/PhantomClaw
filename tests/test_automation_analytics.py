@@ -179,7 +179,7 @@ class AutomationAnalyticsTests(unittest.TestCase):
                 "workflow_parameters": {
                     "type": "follow",
                     "follows_per_day": 20,
-                    "unfollows_per_day": 10,
+                    "unfollows_per_day": 1000,
                     "unfollow_after_days": 14,
                     "do_not_unfollow_peers": True,
                 },

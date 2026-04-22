@@ -66,7 +66,7 @@ Verified 2026-04-21:
 - daily north-star metric: `peerlist_profile_followers=474`
 - OpenClaw cron job `f3a3d7f8-a28d-4f82-b56d-4383f6ae485e` is enabled in live conservative mode:
   - schedule: every two hours from 09:07 through 21:07 Europe/Berlin
-  - command: `PEERLIST_FOLLOW_LIVE=1 PEERLIST_FOLLOWS_PER_DAY=3 PEERLIST_MAX_FOLLOWS_PER_RUN=1 PEERLIST_UNFOLLOWS_PER_DAY=10 PEERLIST_MAX_UNFOLLOWS_PER_RUN=1 /usr/local/bin/run-peerlist-follow-workflow.sh`
+  - command: `PEERLIST_FOLLOW_LIVE=1 PEERLIST_FOLLOWS_PER_DAY=3 PEERLIST_MAX_FOLLOWS_PER_RUN=1 PEERLIST_UNFOLLOWS_PER_DAY=1000 PEERLIST_MAX_UNFOLLOWS_PER_RUN=1 /usr/local/bin/run-peerlist-follow-workflow.sh`
   - Railway health check after restart returned `{"ok":true,"status":"live"}`
 
 Do not raise `PEERLIST_FOLLOWS_PER_DAY`, `PEERLIST_MAX_FOLLOWS_PER_RUN`, `PEERLIST_UNFOLLOWS_PER_DAY`, or `PEERLIST_MAX_UNFOLLOWS_PER_RUN` until multiple days of action events and timestamped metrics look healthy.

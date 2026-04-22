@@ -44,7 +44,7 @@ The automation section identifies the durable product contract, not one specific
     "type": "follow",
     "follows_per_day": 20,
     "max_follows_per_run": 1,
-    "unfollows_per_day": 10,
+    "unfollows_per_day": 1000,
     "max_unfollows_per_run": 1,
     "unfollow_after_days": 14,
     "do_not_unfollow_peers": true
@@ -115,7 +115,7 @@ Platform-specific details go in `metrics_json`. For Peerlist follow workflow:
     "type": "follow",
     "follows_per_day": 20,
     "max_follows_per_run": 1,
-    "unfollows_per_day": 10,
+    "unfollows_per_day": 1000,
     "max_unfollows_per_run": 1,
     "unfollow_after_days": 14,
     "do_not_unfollow_peers": true

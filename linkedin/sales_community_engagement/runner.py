@@ -6,6 +6,7 @@ import random
 import re
 import traceback
 import uuid
+from html.parser import HTMLParser
 from pathlib import Path
 
 from automation_catalog import LINKEDIN_PLATFORM, LINKEDIN_SALES_COMMUNITY_ENGAGEMENT, LINKEDIN_SALES_COMMUNITY_SURFACE
@@ -75,10 +76,114 @@ def parse_args(argv: list[str] | None = None):
         default=env_value("ANALYTICS_DATABASE_URL") or os.getenv("AUTOMATION_ANALYTICS_DATABASE_URL"),
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--fixture", type=Path, help="Read fixture HTML for a non-browser dry run.")
     args = parser.parse_args(argv)
+    if args.fixture and not args.dry_run:
+        raise SystemExit("--fixture requires --dry-run")
     if not args.dry_run and not args.chrome_profile:
         raise SystemExit(f"Missing required configuration: {ENV_PREFIX}_PROFILE")
     return args
+
+
+class SalesCommunityFixtureParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.title: str | None = None
+        self._in_title = False
+        self._article_depth = 0
+        self._tag_stack: list[str] = []
+        self._current: dict[str, object] | None = None
+        self.items: list[dict[str, object]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attrs_dict = dict(attrs)
+        self._tag_stack.append(tag)
+        if tag == "title":
+            self._in_title = True
+        if tag == "article":
+            self._article_depth += 1
+            if self._article_depth == 1:
+                self._current = {"texts": [], "buttons": []}
+        if self._current is not None and tag in {"button", "a"}:
+            label = attrs_dict.get("aria-label") or attrs_dict.get("title")
+            if label:
+                buttons = self._current.setdefault("buttons", [])
+                assert isinstance(buttons, list)
+                buttons.append(str(label).strip())
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "title":
+            self._in_title = False
+        if tag == "article" and self._article_depth:
+            self._article_depth -= 1
+            if self._article_depth == 0 and self._current is not None:
+                self.items.append(self._current)
+                self._current = None
+        if self._tag_stack:
+            self._tag_stack.pop()
+
+    def handle_data(self, data: str) -> None:
+        text = " ".join(data.split())
+        if not text:
+            return
+        if self._in_title:
+            self.title = text if self.title is None else f"{self.title} {text}"
+        if self._current is not None:
+            texts = self._current.setdefault("texts", [])
+            assert isinstance(texts, list)
+            texts.append(text)
+
+
+def fixture_payload(path: Path) -> dict[str, object]:
+    parser = SalesCommunityFixtureParser()
+    parser.feed(path.read_text())
+    page_text = " ".join(
+        " ".join(str(text) for text in item.get("texts", [])) for item in parser.items
+    ).lower()
+    challenge_signals = [
+        signal
+        for signal in ["captcha", "checkpoint", "unusual activity", "security check"]
+        if signal in page_text
+    ]
+    items: list[dict[str, object]] = []
+    for index, item in enumerate(parser.items[:20]):
+        texts = [str(text) for text in item.get("texts", [])]
+        raw = " ".join(texts)
+        heading = next((text for text in texts if len(text) < 120), raw[:120])
+        buttons = [str(label) for label in item.get("buttons", [])]
+        action_label = next(
+            (
+                label
+                for label in buttons
+                if re.search(r"like|react|recommend|follow|save", label, re.IGNORECASE)
+            ),
+            None,
+        )
+        high_signal = bool(
+            re.search(
+                r"leaderboard|rank|top member|top contributor|most active|featured|spotlight|community|hub|onboarding|submit|language",
+                raw,
+                re.IGNORECASE,
+            )
+        )
+        items.append(
+            {
+                "item_id": f"fixture-item-{index}",
+                "title": heading,
+                "subtitle": None,
+                "detail": raw[:500],
+                "action_label": action_label,
+                "action_selector": f"fixture:{index}" if action_label else None,
+                "high_signal": high_signal,
+            }
+        )
+    return {
+        "page_title": parser.title,
+        "logged_in": not re.search(r"sign in|login|logged out", page_text, re.IGNORECASE),
+        "page_shape_ok": bool(re.search(r"community|sales|leaderboard|rank|member", f"{parser.title or ''} {page_text}", re.IGNORECASE)),
+        "challenge_signals": challenge_signals,
+        "items": items,
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -95,11 +200,15 @@ def main(argv: list[str] | None = None) -> int:
     store.start_run(run_id, report.started_at)
     browser = None if args.dry_run else BrowserUseClient(session_name=args.session_name, chrome_profile=args.chrome_profile)
     try:
-        if browser is None:
+        if browser is None and not args.fixture:
             raise SystemExit("--dry-run is not supported without a fixture yet")
-        browser.open(args.url)
-        browser.sleep(1.2)
-        payload = json.loads(browser.collect_payload())
+        if args.fixture:
+            payload = fixture_payload(args.fixture)
+        else:
+            assert browser is not None
+            browser.open(args.url)
+            browser.sleep(1.2)
+            payload = json.loads(browser.collect_payload())
         snapshot = CommunitySnapshot(
             page_title=payload.get("page_title"),
             logged_in=bool(payload.get("logged_in")),
@@ -143,13 +252,17 @@ def main(argv: list[str] | None = None) -> int:
                 report.skips.append({"item_id": item.item_id, "reason": "missing_action_selector"})
                 continue
             try:
-                state_text = browser.state()
-                element_index = resolve_state_index(state_text, item.action_label or item.title)
-                if element_index is None:
-                    report.skips.append({"item_id": item.item_id, "reason": "missing_action_index"})
+                if browser is None:
+                    report.skips.append({"item_id": item.item_id, "reason": "dry_run_no_action"})
                     continue
-                browser.click_index(element_index)
-                browser.sleep(random.uniform(0.5, 1.2))
+                else:
+                    state_text = browser.state()
+                    element_index = resolve_state_index(state_text, item.action_label or item.title)
+                    if element_index is None:
+                        report.skips.append({"item_id": item.item_id, "reason": "missing_action_index"})
+                        continue
+                    browser.click_index(element_index)
+                    browser.sleep(random.uniform(0.5, 1.2))
                 report.items_liked += 1
                 add_event(report, "item_action_taken", item_id=item.item_id, label=item.action_label, element_index=element_index)
             except Exception as exc:

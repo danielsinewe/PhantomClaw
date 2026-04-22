@@ -91,7 +91,7 @@ if [ "${PEERLIST_BROWSER_BACKEND:-peerlist-http}" = "peerlist-http" ]; then
     "--workflow-type" "${PEERLIST_WORKFLOW_TYPE:-follow}"
     "--follows-per-day" "${PEERLIST_FOLLOWS_PER_DAY:-20}"
     "--max-follows-per-run" "${PEERLIST_MAX_FOLLOWS_PER_RUN:-1}"
-    "--unfollows-per-day" "${PEERLIST_UNFOLLOWS_PER_DAY:-10}"
+    "--unfollows-per-day" "${PEERLIST_UNFOLLOWS_PER_DAY:-1000}"
     "--max-unfollows-per-run" "${PEERLIST_MAX_UNFOLLOWS_PER_RUN:-1}"
     "--unfollow-source" "${PEERLIST_UNFOLLOW_SOURCE:-workflow_history}"
     "--unfollow-after-days" "${PEERLIST_UNFOLLOW_AFTER_DAYS:-14}"
@@ -116,7 +116,7 @@ elif [ "${PEERLIST_BROWSER_BACKEND:-peerlist-http}" = "browserbase" ]; then
     "--bundle-output" "$BUNDLE_PATH"
     "--workflow-type" "${PEERLIST_WORKFLOW_TYPE:-follow}"
     "--follows-per-day" "${PEERLIST_FOLLOWS_PER_DAY:-20}"
-    "--unfollows-per-day" "${PEERLIST_UNFOLLOWS_PER_DAY:-10}"
+    "--unfollows-per-day" "${PEERLIST_UNFOLLOWS_PER_DAY:-1000}"
     "--unfollow-after-days" "${PEERLIST_UNFOLLOW_AFTER_DAYS:-14}"
   )
   if [ "${PEERLIST_FOLLOW_LIVE:-0}" = "1" ]; then
@@ -130,7 +130,7 @@ elif [ "${PEERLIST_BROWSER_BACKEND:-peerlist-http}" = "browser-use-cli" ]; then
     "--bundle-output" "$BUNDLE_PATH"
     "--workflow-type" "${PEERLIST_WORKFLOW_TYPE:-follow}"
     "--follows-per-day" "${PEERLIST_FOLLOWS_PER_DAY:-20}"
-    "--unfollows-per-day" "${PEERLIST_UNFOLLOWS_PER_DAY:-10}"
+    "--unfollows-per-day" "${PEERLIST_UNFOLLOWS_PER_DAY:-1000}"
     "--unfollow-after-days" "${PEERLIST_UNFOLLOW_AFTER_DAYS:-14}"
   )
   if [ "${PEERLIST_FOLLOW_LIVE:-0}" = "1" ]; then

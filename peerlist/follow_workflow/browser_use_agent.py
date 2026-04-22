@@ -15,8 +15,13 @@ from phantomclaw_bundle import build_run_bundle
 try:
     from pydantic import BaseModel, Field
 except ImportError:  # pragma: no cover - browser-use-sdk depends on pydantic.
-    BaseModel = object  # type: ignore[assignment,misc]
-    Field = None  # type: ignore[assignment]
+    class BaseModel:  # type: ignore[no-redef]
+        pass
+
+    def Field(default: Any = None, *, default_factory: Any = None, **_: Any) -> Any:  # type: ignore[no-redef]
+        if default_factory is not None:
+            return default_factory()
+        return default
 
 
 DEFAULT_BROWSER_USE_MODEL = "claude-sonnet-4.6"

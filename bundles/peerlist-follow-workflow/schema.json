@@ -158,7 +158,7 @@
         "type": { "enum": ["follow", "unfollow", "rebalance"] },
         "follows_per_day": { "type": "integer", "minimum": 0, "maximum": 100 },
         "max_follows_per_run": { "type": "integer", "minimum": 0, "maximum": 10 },
-        "unfollows_per_day": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "unfollows_per_day": { "type": "integer", "minimum": 0, "maximum": 1000 },
         "max_unfollows_per_run": { "type": "integer", "minimum": 0, "maximum": 100 },
         "unfollow_source": { "enum": ["workflow_history", "current_following"] },
         "unfollow_after_days": { "type": "integer", "minimum": 1, "maximum": 365 },

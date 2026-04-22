@@ -216,7 +216,7 @@ Default parameters:
   "type": "follow",
   "follows_per_day": 3,
   "max_follows_per_run": 1,
-  "unfollows_per_day": 10,
+  "unfollows_per_day": 1000,
   "max_unfollows_per_run": 1,
   "unfollow_after_days": 14,
   "do_not_unfollow_peers": true,
