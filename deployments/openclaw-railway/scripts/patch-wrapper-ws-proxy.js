@@ -19,7 +19,17 @@ const gatewayHost = process.env.OPENCLAW_GATEWAY_HOST || '127.0.0.1'
 const gatewayPort = parseInt(process.env.OPENCLAW_GATEWAY_PORT || '18789', 10)
 
 function isGatewayPath(url) {
-  return url === '/openclaw' || url.startsWith('/openclaw/')
+  return url === '/openclaw' || url.startsWith('/openclaw?') || url.startsWith('/openclaw/')
+}
+
+function normalizeGatewayUrl(url) {
+  if (url === '/openclaw') {
+    return '/openclaw/'
+  }
+  if (url.startsWith('/openclaw?')) {
+    return \`/openclaw/\${url.slice('/openclaw'.length)}\`
+  }
+  return url
 }
 
 function proxyGatewayRequest(req, res) {
@@ -27,7 +37,7 @@ function proxyGatewayRequest(req, res) {
     host: gatewayHost,
     port: gatewayPort,
     method: req.method,
-    path: req.url,
+    path: normalizeGatewayUrl(req.url || '/openclaw/'),
     headers: {
       ...req.headers,
       host: \`\${gatewayHost}:\${gatewayPort}\`,
@@ -54,8 +64,9 @@ function proxyGatewayRequest(req, res) {
 
 function proxyGatewayUpgrade(req, socket, head) {
   const upstream = net.connect(gatewayPort, gatewayHost, () => {
+    const upstreamUrl = normalizeGatewayUrl(req.url || '/openclaw/')
     const headers = [
-      \`\${req.method} \${req.url} HTTP/\${req.httpVersion}\`,
+      \`\${req.method} \${upstreamUrl} HTTP/\${req.httpVersion}\`,
       ...Object.entries(req.headers).map(([key, value]) => {
         const normalized = Array.isArray(value) ? value.join(', ') : value
         if (key.toLowerCase() === 'host') {
