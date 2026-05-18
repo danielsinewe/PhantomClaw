@@ -327,6 +327,14 @@ def default_due_catchup_minutes() -> int:
         return 3
 
 
+def default_stale_reclaim_lookback_hours() -> int:
+    raw = os.getenv("PHANTOMCLAW_STALE_RECLAIM_LOOKBACK_HOURS", "2").strip()
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return 2
+
+
 def load_due_automations(
     database_url: str,
     *,
@@ -357,6 +365,7 @@ def load_due_automations(
     candidates: list[tuple[Any, str]] = []
     due: list[DueAutomation] = []
     active_rows_by_id = {str(row[1]): row for row in rows}
+    stale_reclaim_candidates_by_id: dict[str, set[str]] = {}
     for row in rows:
         tz = ZoneInfo(row[3] or "Europe/Berlin")
         local_now = now.astimezone(tz)
@@ -367,6 +376,15 @@ def load_due_automations(
             catchup_minutes=resolved_catchup_minutes,
         ):
             candidates.append((row, occurrence))
+        stale_reclaim_candidates_by_id[str(row[1])] = set(
+            recent_expected_occurrences(
+                str(row[1]),
+                str(row[4] or ""),
+                now=now,
+                timezone_name=str(row[3] or "Europe/Berlin"),
+                lookback_hours=default_stale_reclaim_lookback_hours(),
+            )
+        )
 
     stale_claimed_before = now.astimezone(UTC) - timedelta(minutes=STALE_CLAIMED_MINUTES)
     with connect(database_url) as conn:
@@ -388,9 +406,14 @@ def load_due_automations(
 
     seen_candidate_occurrences = {occurrence for _, occurrence in candidates}
     for automation_id, occurrence in stale_claimed_rows:
-        row = active_rows_by_id.get(str(automation_id))
+        automation_id_text = str(automation_id)
+        row = active_rows_by_id.get(automation_id_text)
         occurrence_key = str(occurrence)
-        if row is None or occurrence_key in seen_candidate_occurrences:
+        if (
+            row is None
+            or occurrence_key in seen_candidate_occurrences
+            or occurrence_key not in stale_reclaim_candidates_by_id.get(automation_id_text, set())
+        ):
             continue
         candidates.append((row, occurrence_key))
         seen_candidate_occurrences.add(occurrence_key)

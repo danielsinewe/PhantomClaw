@@ -242,6 +242,55 @@ class PhantomClawWorkerTests(unittest.TestCase):
 
         self.assertEqual(due, [])
 
+    def test_load_due_automations_ignores_historical_stale_claimed_occurrence(self) -> None:
+        now = datetime(2026, 5, 18, 9, 35, tzinfo=ZoneInfo("Europe/Berlin"))
+        old_occurrence_key = "trustoutreach-linkedin:2026-05-10T17:00"
+        active_rows = [
+            (
+                "daniel-sinewe",
+                "trustoutreach-linkedin",
+                "LinkedIn Company Profile Engagement",
+                "Europe/Berlin",
+                "FREQ=HOURLY;INTERVAL=1;BYMINUTE=0;BYDAY=SU,MO,TU,WE,TH,FR,SA",
+                "linkedin",
+                "core",
+                "native",
+                "phantomclaw_native",
+                json.dumps(["python3", "-m", "linkedin.company_profile_engagement.runner"]),
+                json.dumps([]),
+                json.dumps({"live_enabled": True}),
+                json.dumps({}),
+            )
+        ]
+        stale_rows = [("trustoutreach-linkedin", old_occurrence_key)]
+        dispatch_rows = [
+            (
+                old_occurrence_key,
+                "claimed",
+                now - timedelta(days=8),
+                None,
+            )
+        ]
+        cursors = [FakeCursor(rows=active_rows), FakeCursor(rows=stale_rows), FakeCursor(rows=dispatch_rows)]
+
+        with patch("phantomclaw_worker.ensure_worker_schema"):
+            with patch(
+                "phantomclaw_worker.connect",
+                side_effect=[
+                    FakeConnection(cursors[0]),
+                    FakeConnection(cursors[1]),
+                    FakeConnection(cursors[2]),
+                ],
+            ):
+                due = load_due_automations(
+                    "postgresql://example",
+                    workspace_slug="daniel-sinewe",
+                    now=now,
+                    catchup_minutes=3,
+                )
+
+        self.assertEqual(due, [])
+
     def test_registry_entry_parameters_merges_peerlist_defaults(self) -> None:
         params = registry_entry_parameters(
             {
