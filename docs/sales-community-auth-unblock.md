@@ -78,42 +78,54 @@ railway run uv run python scripts/phantomclaw_completion_audit.py
 
 The objective is complete only when this audit returns `status: complete`.
 
-## Current evidence, 2026-05-18
+## Resolution evidence, 2026-05-18
 
-The production completion audit still returns:
+After authenticating the local `danielsinewe.com` Chrome profile, the first
+guarded activation attempt still failed because Railway environment variables
+selected the configured Browser Use cloud/CDP profile instead of the local
+Chrome profile. The activation was rerun with those browser overrides unset and
+`LINKEDIN_SALES_COMMUNITY_ENGAGEMENT_PROFILE=danielsinewe.com`.
 
-```json
-{
-  "status": "blocked_sales_community_auth",
-  "ok": false
-}
-```
-
-The guarded activation check still stops safely before enabling the automation:
+The zero-action guard passed:
 
 ```json
 {
-  "ready": false,
-  "reason": "auth_required",
+  "ready": true,
+  "reason": "activation_ready",
   "check": {
-    "status": "stopped",
-    "stop_reason": "auth_required",
+    "status": "ok",
+    "stop_reason": null,
     "page_shape_ok": true,
-    "items_scanned": 0,
-    "items_considered": 0
+    "items_scanned": 10,
+    "items_considered": 3
   }
 }
 ```
 
-The following Chrome profiles were checked against
-`https://scommunity.linkedin.com/` and all still showed unauthenticated or
-locked community state:
+Activation then updated the registry and synced Neon:
 
-- `danielsinewe.com`
-- `Daniel`
-- `bee2b.io`
-- `salesprompter.ai`
-- `daniel.dirks@bee2b.io`
+```json
+{
+  "activated": true,
+  "registry_update": {
+    "automation_id": "linkedin-sales-community",
+    "status": "ACTIVE",
+    "source_status": "ACTIVE",
+    "live_enabled": true
+  },
+  "neon_sync": {
+    "synced": true,
+    "upserted_count": 4,
+    "pruned_count": 0
+  }
+}
+```
 
-The `danielsinewe.com` profile currently reaches the LinkedIn sign-in screen
-with `hello@danielsinewe.com` prefilled and the password field visible.
+The completion audit now returns:
+
+```json
+{
+  "status": "complete",
+  "ok": true
+}
+```
