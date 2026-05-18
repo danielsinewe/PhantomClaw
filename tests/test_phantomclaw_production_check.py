@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
-from scripts.phantomclaw_production_check import check_worker_health, cli_summary
+from scripts.phantomclaw_production_check import (
+    check_worker_health,
+    cli_summary,
+    registry_source_path_status,
+    source_path_summary,
+)
 
 
 class PhantomClawProductionCheckTests(unittest.TestCase):
@@ -112,6 +119,76 @@ class PhantomClawProductionCheckTests(unittest.TestCase):
         self.assertTrue(summary["checked"])
         self.assertFalse(summary["ok"])
         self.assertEqual(summary["recent_failed_dispatch_count"], 1)
+
+    def test_registry_source_path_status_reports_missing_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            existing = Path(tmpdir) / "automation.toml"
+            existing.write_text("status = \"ACTIVE\"\n")
+            registry = {
+                "automations": [
+                    {
+                        "id": "active-one",
+                        "name": "Active One",
+                        "status": "ACTIVE",
+                        "source_status": "ACTIVE",
+                        "runner": {"status": "native"},
+                        "source": {"path": str(existing)},
+                    },
+                    {
+                        "id": "stale-one",
+                        "name": "Stale One",
+                        "status": "PAUSED",
+                        "source_status": "ACTIVE",
+                        "runner": {"status": "native_candidate"},
+                        "source": {
+                            "path": str(Path(tmpdir) / "missing.toml"),
+                        },
+                    },
+                    {
+                        "id": "deleted-one",
+                        "name": "Deleted One",
+                        "status": "PAUSED",
+                        "source_status": "PAUSED",
+                        "runner": {"status": "native_candidate"},
+                        "source": {
+                            "path": str(Path(tmpdir) / "deleted.toml"),
+                            "deleted_from_codex_at": "2026-05-18T08:00:00+00:00",
+                        },
+                    },
+                    {
+                        "id": "generated-one",
+                        "name": "Generated One",
+                        "source": {"path": "OpenClaw generated runner"},
+                    },
+                ]
+            }
+
+            status = registry_source_path_status(registry)
+
+        self.assertFalse(status["ok"])
+        self.assertEqual(status["existing_count"], 1)
+        self.assertEqual(status["missing_count"], 1)
+        self.assertEqual(status["deleted_missing_count"], 1)
+        self.assertEqual(status["skipped_count"], 1)
+        self.assertEqual(status["missing_sources"][0]["id"], "stale-one")
+        self.assertEqual(status["missing_sources"][0]["deleted_from_codex_at"], None)
+        self.assertEqual(status["deleted_missing_sources"][0]["id"], "deleted-one")
+
+    def test_source_path_summary_can_hide_details(self) -> None:
+        source_paths = {
+            "ok": False,
+            "missing_count": 1,
+            "deleted_missing_count": 1,
+            "missing_sources": [{"id": "stale-one"}],
+            "deleted_missing_sources": [{"id": "deleted-one"}],
+        }
+
+        summary = source_path_summary(source_paths, include_details=False)
+
+        self.assertEqual(summary["ok"], False)
+        self.assertEqual(summary["missing_count"], 1)
+        self.assertNotIn("missing_sources", summary)
+        self.assertNotIn("deleted_missing_sources", summary)
 
 
 if __name__ == "__main__":

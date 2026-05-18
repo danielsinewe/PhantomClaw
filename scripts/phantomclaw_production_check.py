@@ -37,6 +37,65 @@ def active_codex_automations(root: Path) -> list[str]:
     return active
 
 
+def registry_source_path_status(registry: dict[str, Any]) -> dict[str, Any]:
+    missing: list[dict[str, Any]] = []
+    deleted_missing: list[dict[str, Any]] = []
+    existing = 0
+    skipped = 0
+    for automation in registry.get("automations", []):
+        if not isinstance(automation, dict):
+            continue
+        source = automation.get("source")
+        if not isinstance(source, dict):
+            skipped += 1
+            continue
+        path_value = source.get("path")
+        if not isinstance(path_value, str) or not path_value:
+            skipped += 1
+            continue
+        path = Path(path_value)
+        if not path.is_absolute():
+            skipped += 1
+            continue
+        if path.exists():
+            existing += 1
+            continue
+        entry = {
+            "id": automation.get("id"),
+            "name": automation.get("name"),
+            "status": automation.get("status"),
+            "source_status": automation.get("source_status"),
+            "runner_status": (automation.get("runner") or {}).get("status")
+            if isinstance(automation.get("runner"), dict)
+            else None,
+            "path": path_value,
+            "deleted_from_codex_at": source.get("deleted_from_codex_at"),
+        }
+        if source.get("deleted_from_codex_at"):
+            deleted_missing.append(entry)
+        else:
+            missing.append(entry)
+    return {
+        "ok": not missing,
+        "existing_count": existing,
+        "missing_count": len(missing),
+        "deleted_missing_count": len(deleted_missing),
+        "skipped_count": skipped,
+        "missing_sources": missing,
+        "deleted_missing_sources": deleted_missing,
+    }
+
+
+def source_path_summary(source_paths: dict[str, Any], *, include_details: bool) -> dict[str, Any]:
+    if include_details:
+        return source_paths
+    return {
+        key: value
+        for key, value in source_paths.items()
+        if key not in {"missing_sources", "deleted_missing_sources"}
+    }
+
+
 def http_health(url: str, timeout: int) -> dict[str, Any]:
     try:
         request = Request(url, headers={"User-Agent": "phantomclaw-production-check/1"})
@@ -160,10 +219,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--worker-lookback-hours", type=int, default=3)
     parser.add_argument("--require-worker", action="store_true", help="Return failure when worker dispatch health cannot be checked")
     parser.add_argument("--fail-on-recent-dispatch-failures", action="store_true", help="Return failure if recent worker dispatches include failed or blocked runs")
+    parser.add_argument("--require-existing-source-paths", action="store_true", help="Return failure if registry source automation.toml paths no longer exist")
     args = parser.parse_args(argv)
 
     registry = load_registry(args.registry)
     readiness = registry_readiness_report(registry)
+    source_paths = registry_source_path_status(registry)
     codex_active = active_codex_automations(args.codex_automations_root)
     gateway = http_health(args.gateway_health_url, args.timeout)
     cli = verify_phantomclaw_cli(args.phantomclaw_cli, args.timeout)
@@ -176,6 +237,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     all_remote_ok = not args.require_all_remote_runners or readiness["total_without_remote_runner"] == 0
+    sources_ok = not args.require_existing_source_paths or source_paths["ok"]
     ok = (
         not codex_active
         and gateway["ok"]
@@ -183,12 +245,17 @@ def main(argv: list[str] | None = None) -> int:
         and worker["ok"]
         and (readiness["ready"] or args.allow_blocked)
         and all_remote_ok
+        and sources_ok
     )
     result = {
         "ok": ok,
         "codex_processing_enabled": False,
         "active_codex_automations": len(codex_active),
         "phantomclaw_registry": readiness,
+        "registry_source_paths": source_path_summary(
+            source_paths,
+            include_details=args.require_existing_source_paths,
+        ),
         "gateway_health": gateway,
         "phantomclaw_cli": cli_summary(cli),
         "worker": worker,
