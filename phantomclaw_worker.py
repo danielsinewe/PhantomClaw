@@ -216,6 +216,7 @@ def sync_registry_to_neon(
     registry_path: Path,
     workspace_slug: str,
     activate_only_runnable: bool = True,
+    prune_absent: bool = False,
 ) -> dict[str, Any]:
     registry = json.loads(registry_path.read_text())
     automations = registry.get("automations")
@@ -224,6 +225,7 @@ def sync_registry_to_neon(
 
     ensure_worker_schema(database_url)
     upserted: list[str] = []
+    pruned: list[str] = []
     with connect(database_url) as conn:
         with conn.cursor() as cur:
             for entry in automations:
@@ -296,8 +298,26 @@ def sync_registry_to_neon(
                     ),
                 )
                 upserted.append(automation_id)
+            if prune_absent:
+                cur.execute(
+                    """
+                    DELETE FROM phantomclaw_automations
+                    WHERE workspace_slug = %s
+                      AND NOT (automation_id = ANY(%s))
+                    RETURNING automation_id
+                    """,
+                    (workspace_slug, upserted),
+                )
+                pruned = [str(row[0]) for row in cur.fetchall()]
         conn.commit()
-    return {"synced": True, "workspace_slug": workspace_slug, "upserted_count": len(upserted), "automation_ids": upserted}
+    return {
+        "synced": True,
+        "workspace_slug": workspace_slug,
+        "upserted_count": len(upserted),
+        "automation_ids": upserted,
+        "pruned_count": len(pruned),
+        "pruned_automation_ids": pruned,
+    }
 
 
 def json_object(value: Any) -> dict[str, Any]:

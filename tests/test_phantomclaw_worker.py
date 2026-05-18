@@ -6,6 +6,8 @@ from argparse import Namespace
 from datetime import datetime
 from datetime import timedelta
 import sys
+import tempfile
+from pathlib import Path
 from zoneinfo import ZoneInfo
 import unittest
 from unittest.mock import patch
@@ -24,6 +26,7 @@ from phantomclaw_worker import (
     recent_due_occurrences,
     recent_expected_occurrences,
     registry_entry_parameters,
+    sync_registry_to_neon,
 )
 
 
@@ -308,6 +311,53 @@ class PhantomClawWorkerTests(unittest.TestCase):
         self.assertEqual(params["max_unfollows_per_run"], 1000)
         self.assertTrue(params["do_not_unfollow_peers"])
         self.assertTrue(params["do_not_unfollow_followers"])
+
+    def test_sync_registry_to_neon_can_prune_absent_workspace_rows(self) -> None:
+        cursor = FakeCursor(rows=[("stale-automation",)])
+        connection = FakeConnection(cursor)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            registry_path = Path(tmpdir) / "registry.json"
+            registry_path.write_text(
+                json.dumps(
+                    {
+                        "automations": [
+                            {
+                                "id": "kept-automation",
+                                "name": "Kept Automation",
+                                "status": "ACTIVE",
+                                "source_status": "ACTIVE",
+                                "timezone": "Europe/Berlin",
+                                "rrule": "FREQ=HOURLY;BYMINUTE=0",
+                                "platform": "phantomclaw",
+                                "surface": "generic",
+                                "runner": {
+                                    "status": "native",
+                                    "dispatch": "phantomclaw_native",
+                                    "command": ["python3", "-m", "kept"],
+                                    "dry_run_command": ["python3", "-m", "kept", "--dry-run"],
+                                },
+                            }
+                        ]
+                    }
+                )
+            )
+
+            with patch("phantomclaw_worker.ensure_worker_schema"), patch(
+                "phantomclaw_worker.connect",
+                return_value=connection,
+            ):
+                result = sync_registry_to_neon(
+                    database_url="postgresql://example",
+                    registry_path=registry_path,
+                    workspace_slug="daniel-sinewe",
+                    prune_absent=True,
+                )
+
+        self.assertTrue(connection.committed)
+        self.assertEqual(result["upserted_count"], 1)
+        self.assertEqual(result["pruned_count"], 1)
+        self.assertEqual(result["pruned_automation_ids"], ["stale-automation"])
+        self.assertTrue(any("DELETE FROM phantomclaw_automations" in query for query, _ in cursor.calls))
 
     def test_peerlist_namespace_uses_neon_parameters(self) -> None:
         due = DueAutomation(
