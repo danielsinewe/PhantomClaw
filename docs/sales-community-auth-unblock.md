@@ -44,6 +44,15 @@ browser-use close --all
 Do not activate the automation if the page still shows `Login`,
 `Customer Login | Register`, or the public `Join the club` copy.
 
+Known login paths observed on the public page:
+
+- `https://scommunity.linkedin.com/ssoproxy/login?ssoType=openidconnect`
+- `https://scommunity.linkedin.com/sso/login?ssoType=linkedin`
+
+Both paths can legitimately stop at the LinkedIn password screen for
+`hello@danielsinewe.com`. Treat that as a credential boundary, not an automation
+bug.
+
 ## Activate after access is restored
 
 After the browser profile reaches the authenticated community surface, run the
