@@ -4,8 +4,10 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
+import time
 from pathlib import Path
-from urllib.parse import parse_qsl, urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse
 
 
 COLLECTOR_SCRIPT = r"""
@@ -14,9 +16,10 @@ COLLECTOR_SCRIPT = r"""
   const url = window.location.href.toLowerCase();
   const challengeSignals = ["captcha", "checkpoint", "unusual activity", "security check"].filter((s) => text.includes(s));
   const pageTitle = document.title || null;
-  const loggedIn = !/sign in|login/i.test(pageTitle || "") && !/logged out/i.test(text);
+  const loggedIn = !/sign in|login|log in/i.test(pageTitle || "") && !/\blog\s*in\b|login|logged out/i.test(text);
   const itemRoots = Array.from(document.querySelectorAll("article, [role='listitem'], li"))
     .filter((node) => (node.innerText || node.textContent || "").trim().length > 40);
+  const engagementActionPattern = /\b(like|react|recommend)\b/i;
 
   const normalize = (value, fallback) => {
     const text = String(value || fallback || "").replace(/\s+/g, " ").trim();
@@ -40,11 +43,14 @@ COLLECTOR_SCRIPT = r"""
         const label = normalize(node.getAttribute("aria-label") || node.textContent, "");
         const tag = (node.tagName || "").toLowerCase() || "button";
         const aria = node.getAttribute("aria-label");
+        const pressed = (node.getAttribute("aria-pressed") || "").toLowerCase() === "true" ||
+          /\b(liked|recommended)\b/i.test(label);
         const selector = aria ? `${tag}[aria-label="${cssEscape(aria)}"]` : `${tag}`;
-        return { label, selector, buttonIndex };
+        return { label, selector, buttonIndex, pressed };
       })
       .filter((entry) => entry.label);
-    const action = buttons.find((entry) => /^like$|^react$|^recommend$|^follow$|^save$/i.test(entry.label) || /like|react|recommend|follow/i.test(entry.label));
+    const action = buttons.find((entry) => !entry.pressed && engagementActionPattern.test(entry.label));
+    const actionPressed = buttons.some((entry) => entry.pressed && engagementActionPattern.test(entry.label));
     const highSignal =
       /leaderboard|rank|top member|top contributor|most active|featured|spotlight/i.test(raw) ||
       /leaderboard|rank|top/i.test(heading) ||
@@ -58,6 +64,7 @@ COLLECTOR_SCRIPT = r"""
       detail: raw.slice(0, 500),
       action_label: action ? action.label : null,
       action_selector: action ? `${rootTag}:nth-of-type(${index + 1}) ${action.selector}` : null,
+      action_pressed: actionPressed,
       high_signal: highSignal,
     };
   });
@@ -80,7 +87,6 @@ COLLECTOR_SCRIPT = r"""
     const match = knownSelectors.find((entry) => /community onboarding|competitions & challenges|recently active conversations|help answer questions|sales assistant hub|language hub|product idea|submit it here|community resources/i.test(`${entry.text} ${entry.href}`));
     if (match) {
       item.action_label = match.text;
-      item.action_selector = match.selector;
       item.high_signal = true;
       break;
     }
@@ -88,6 +94,7 @@ COLLECTOR_SCRIPT = r"""
 
   return JSON.stringify({
     page_title: pageTitle,
+    page_url: window.location.href || null,
     logged_in: loggedIn,
     page_shape_ok: /community|sales/i.test(pageTitle || "") || /leaderboard|rank|member/i.test(text),
     challenge_signals: challengeSignals,
@@ -101,15 +108,41 @@ class BrowserUseError(RuntimeError):
     pass
 
 
-DEFAULT_COMMAND_TIMEOUT_SECONDS = 45.0
+DEFAULT_COMMAND_TIMEOUT_SECONDS = 300.0
+DEFAULT_BROWSER_START_TIMEOUT_SECONDS = 240.0
+COMMAND_TIMEOUT_BUFFER_SECONDS = 30.0
+DEFAULT_COMMAND_RETRIES = 3
+TRANSIENT_BROWSER_USE_ERRORS = (
+    "websocket error",
+    "tungstenite",
+    "connection reset",
+    "connection closed",
+    "connection refused",
+    "failed to connect",
+    "timeouterror",
+    "timed out",
+    "timed out waiting for browser",
+)
 
 
 class BrowserUseClient:
-    def __init__(self, *, session_name: str, chrome_profile: str, command_timeout_seconds: float | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        session_name: str,
+        chrome_profile: str,
+        command_timeout_seconds: float | None = None,
+        browser_start_timeout_seconds: float | None = None,
+    ) -> None:
         self.session_name = session_name
         self.chrome_profile = chrome_profile
         self.binary = self._resolve_binary()
-        self.command_timeout_seconds = self._resolve_timeout_seconds(command_timeout_seconds)
+        self.cdp_url = self._resolve_cdp_url()
+        self.browser_start_timeout_seconds = self._resolve_browser_start_timeout_seconds(browser_start_timeout_seconds)
+        self.command_timeout_seconds = self._resolve_timeout_seconds(
+            command_timeout_seconds,
+            min_required=self.browser_start_timeout_seconds + COMMAND_TIMEOUT_BUFFER_SECONDS,
+        )
 
     def _resolve_binary(self) -> str:
         candidates = [
@@ -125,50 +158,190 @@ class BrowserUseClient:
         raise BrowserUseError("browser-use is not installed or not on PATH")
 
     def _run(self, *args: str) -> str:
-        cmd = [self.binary, "--session", self.session_name, "--profile", self.chrome_profile, *args]
-        try:
-            result = subprocess.run(
-                cmd,
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=self.command_timeout_seconds,
-            )
-        except subprocess.TimeoutExpired as exc:
-            suffix = ""
-            detail = (exc.stderr or exc.stdout or "").strip() if isinstance(exc.stderr or exc.stdout or "", str) else ""
-            if detail:
-                suffix = f" ({detail})"
-            raise BrowserUseError(
-                f"browser-use command timed out after {self.command_timeout_seconds:g}s: {' '.join(args)}{suffix}"
-            ) from exc
-        if result.returncode != 0:
-            raise BrowserUseError(result.stderr.strip() or result.stdout.strip() or "browser-use command failed")
-        return result.stdout.strip()
+        cmd = [self.binary, "--session", self.session_name]
+        if self.cdp_url:
+            cmd.extend(["--cdp-url", self.cdp_url])
+        else:
+            cmd.extend(["--profile", self.chrome_profile])
+        cmd.extend(args)
+        env = os.environ.copy()
+        env.setdefault("TIMEOUT_BrowserStartEvent", f"{self.browser_start_timeout_seconds:g}")
+        attempts = max(1, self._resolve_command_retries())
+        last_error: BrowserUseError | None = None
+        for attempt in range(1, attempts + 1):
+            try:
+                result = subprocess.run(
+                    cmd,
+                    check=False,
+                    capture_output=True,
+                    env=env,
+                    text=True,
+                    timeout=self.command_timeout_seconds,
+                )
+            except subprocess.TimeoutExpired as exc:
+                suffix = ""
+                detail = (exc.stderr or exc.stdout or "").strip() if isinstance(exc.stderr or exc.stdout or "", str) else ""
+                if detail:
+                    suffix = f" ({detail})"
+                message = f"browser-use command timed out after {self.command_timeout_seconds:g}s: {' '.join(args)}{suffix}"
+                last_error = BrowserUseError(message)
+                if attempt >= attempts:
+                    raise last_error from exc
+                time.sleep(min(2 ** attempt, 8))
+                continue
+            if result.returncode == 0:
+                return result.stdout.strip()
+            message = result.stderr.strip() or result.stdout.strip() or "browser-use command failed"
+            last_error = BrowserUseError(message)
+            if attempt >= attempts or not self._is_transient_browser_use_error(message):
+                raise last_error
+            time.sleep(min(2 ** attempt, 8))
+        raise last_error or BrowserUseError("browser-use command failed")
 
     @staticmethod
-    def _resolve_timeout_seconds(command_timeout_seconds: float | None) -> float:
+    def _resolve_command_retries() -> int:
+        raw = os.getenv("BROWSER_USE_COMMAND_RETRIES", str(DEFAULT_COMMAND_RETRIES)).strip()
+        try:
+            return max(1, int(raw))
+        except ValueError:
+            return DEFAULT_COMMAND_RETRIES
+
+    @staticmethod
+    def _is_transient_browser_use_error(message: str) -> bool:
+        normalized = message.lower()
+        return any(marker in normalized for marker in TRANSIENT_BROWSER_USE_ERRORS)
+
+    @staticmethod
+    def _resolve_cdp_url() -> str | None:
+        explicit = (
+            os.getenv("LINKEDIN_SALES_COMMUNITY_ENGAGEMENT_CDP_URL")
+            or os.getenv("BROWSER_USE_CDP_URL")
+            or os.getenv("BROWSER_USE_CLI_CDP_URL")
+        )
+        if explicit:
+            return explicit
+        api_key = os.getenv("BROWSER_USE_API_KEY")
+        profile_id = os.getenv("BROWSER_USE_PROFILE_ID")
+        if not api_key or not profile_id:
+            return None
+        return "wss://connect.browser-use.com?" + urlencode(
+            {
+                "apiKey": api_key,
+                "profileId": profile_id,
+                "proxyCountryCode": os.getenv("BROWSER_USE_PROXY_COUNTRY_CODE", "de"),
+                "timeout": os.getenv("BROWSER_USE_TIMEOUT_MINUTES", "30"),
+            }
+        )
+
+    @staticmethod
+    def _resolve_timeout_seconds(command_timeout_seconds: float | None, *, min_required: float = 0.0) -> float:
         if command_timeout_seconds is None:
             raw = os.getenv("BROWSER_USE_COMMAND_TIMEOUT_SECONDS", "").strip()
             if not raw:
-                return DEFAULT_COMMAND_TIMEOUT_SECONDS
-            try:
-                command_timeout_seconds = float(raw)
-            except ValueError as exc:
-                raise BrowserUseError(
-                    f"Invalid BROWSER_USE_COMMAND_TIMEOUT_SECONDS value: {raw!r}"
-                ) from exc
+                command_timeout_seconds = DEFAULT_COMMAND_TIMEOUT_SECONDS
+            else:
+                try:
+                    command_timeout_seconds = float(raw)
+                except ValueError as exc:
+                    raise BrowserUseError(
+                        f"Invalid BROWSER_USE_COMMAND_TIMEOUT_SECONDS value: {raw!r}"
+                    ) from exc
         if command_timeout_seconds <= 0:
             raise BrowserUseError("BROWSER_USE_COMMAND_TIMEOUT_SECONDS must be greater than zero")
-        return float(command_timeout_seconds)
+        return max(float(command_timeout_seconds), float(min_required))
+
+    @staticmethod
+    def _resolve_browser_start_timeout_seconds(browser_start_timeout_seconds: float | None) -> float:
+        if browser_start_timeout_seconds is None:
+            raw = (
+                os.getenv("BROWSER_USE_BROWSER_START_TIMEOUT_SECONDS", "").strip()
+                or os.getenv("TIMEOUT_BrowserStartEvent", "").strip()
+            )
+            if not raw:
+                return DEFAULT_BROWSER_START_TIMEOUT_SECONDS
+            try:
+                browser_start_timeout_seconds = float(raw)
+            except ValueError as exc:
+                raise BrowserUseError(
+                    f"Invalid browser start timeout value: {raw!r}"
+                ) from exc
+        if browser_start_timeout_seconds <= 0:
+            raise BrowserUseError("Browser start timeout must be greater than zero")
+        return float(browser_start_timeout_seconds)
 
     def open(self, url: str) -> None:
         self._run("open", url)
-        self._focus_tab_for_url(url)
+        if not self._focus_tab_for_url(url):
+            self._run("open", url)
 
-    def _focus_tab_for_url(self, expected_url: str, max_tabs: int = 12) -> None:
+    def import_linkedin_cookies_from_env(self) -> bool:
+        raw = (
+            os.getenv("LINKEDIN_SALES_COMMUNITY_ENGAGEMENT_COOKIES_JSON")
+            or os.getenv("LINKEDIN_COOKIES_JSON")
+        )
+        if not raw:
+            return False
+        try:
+            cookies = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise BrowserUseError("LINKEDIN_COOKIES_JSON is not valid JSON") from exc
+        if not isinstance(cookies, list):
+            raise BrowserUseError("LINKEDIN_COOKIES_JSON must be a JSON array")
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:
+            json.dump(cookies, handle)
+            cookie_path = Path(handle.name)
+        try:
+            self._run("open", "https://www.linkedin.com/")
+            self._run("cookies", "import", str(cookie_path))
+            return True
+        finally:
+            try:
+                cookie_path.unlink()
+            except OSError:
+                pass
+
+    def bootstrap_sales_community_sso(self, community_url: str) -> bool:
+        self.open("https://scommunity.linkedin.com/sso/login?ssoType=linkedin")
+        time.sleep(2)
+        state = self.get_page_state()
+        current_url = str(state.get("url") or "")
+        if "linkedin.com" in urlparse(current_url).netloc.lower():
+            clicked = self._click_linkedin_oauth_consent_if_safe()
+            if clicked:
+                time.sleep(2)
+        self.open(community_url)
+        time.sleep(1.5)
+        return True
+
+    def _click_linkedin_oauth_consent_if_safe(self) -> bool:
+        raw = self._run(
+            "eval",
+            r"""
+(() => {
+  const hasPassword = Boolean(document.querySelector('input[type="password"], input[name="session_password"]'));
+  if (hasPassword) return JSON.stringify({ clicked: false, reason: "credential_form" });
+  const buttons = Array.from(document.querySelectorAll('button, input[type="submit"]'));
+  const target = buttons.find((node) => {
+    const label = String(node.innerText || node.value || node.getAttribute('aria-label') || '').trim();
+    return /\b(allow|authorize|agree|continue)\b/i.test(label);
+  });
+  if (!target) return JSON.stringify({ clicked: false, reason: "no_consent_button" });
+  target.click();
+  return JSON.stringify({ clicked: true });
+})()
+""",
+        )
+        if raw.startswith("result:"):
+            raw = raw.split("result:", 1)[1].strip()
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            return False
+        return bool(isinstance(payload, dict) and payload.get("clicked") is True)
+
+    def _focus_tab_for_url(self, expected_url: str, max_tabs: int = 12) -> bool:
         if self._page_matches_expected_url(expected_url):
-            return
+            return True
         for index in range(max_tabs):
             try:
                 self._run("switch", str(index))
@@ -177,7 +350,8 @@ class BrowserUseClient:
                     break
                 raise
             if self._page_matches_expected_url(expected_url):
-                return
+                return True
+        return False
 
     def _page_matches_expected_url(self, expected_url: str) -> bool:
         state = self.get_page_state()
