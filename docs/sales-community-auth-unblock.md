@@ -121,6 +121,25 @@ Activation then updated the registry and synced Neon:
 }
 ```
 
+The production Browser Use/CDP environment was then verified separately by
+setting `LINKEDIN_SALES_COMMUNITY_ENGAGEMENT_COOKIES_JSON` from the authenticated
+profile cookies through Railway stdin. With the default Railway environment, the
+zero-action guard now returns:
+
+```json
+{
+  "ready": true,
+  "reason": "activation_ready",
+  "check": {
+    "status": "ok",
+    "stop_reason": null,
+    "page_shape_ok": true,
+    "items_scanned": 10,
+    "items_considered": 3
+  }
+}
+```
+
 The completion audit now returns:
 
 ```json
