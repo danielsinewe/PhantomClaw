@@ -8,6 +8,8 @@ from unittest.mock import patch
 from scripts.phantomclaw_production_check import (
     check_worker_health,
     cli_summary,
+    paused_native_automation_status,
+    paused_native_summary,
     registry_source_path_status,
     source_path_summary,
 )
@@ -189,6 +191,57 @@ class PhantomClawProductionCheckTests(unittest.TestCase):
         self.assertEqual(summary["missing_count"], 1)
         self.assertNotIn("missing_sources", summary)
         self.assertNotIn("deleted_missing_sources", summary)
+
+    def test_paused_native_automation_status_reports_paused_runners(self) -> None:
+        registry = {
+            "automations": [
+                {
+                    "id": "active-one",
+                    "name": "Active One",
+                    "status": "ACTIVE",
+                    "source_status": "ACTIVE",
+                    "runner": {"status": "native", "dispatch": "phantomclaw_native"},
+                },
+                {
+                    "id": "paused-one",
+                    "name": "Paused One",
+                    "status": "PAUSED",
+                    "source_status": "PAUSED",
+                    "runner": {"status": "native", "dispatch": "phantomclaw_native"},
+                    "parameters": {
+                        "live_enabled": False,
+                        "pause_reason": "auth_required",
+                    },
+                },
+                {
+                    "id": "blocked-non-native",
+                    "name": "Blocked Non Native",
+                    "status": "PAUSED",
+                    "runner": {"status": "missing"},
+                },
+            ]
+        }
+
+        status = paused_native_automation_status(registry)
+
+        self.assertFalse(status["ok"])
+        self.assertEqual(status["paused_count"], 1)
+        self.assertEqual(status["paused_automations"][0]["id"], "paused-one")
+        self.assertEqual(status["paused_automations"][0]["pause_reason"], "auth_required")
+        self.assertEqual(status["paused_automations"][0]["live_enabled"], False)
+
+    def test_paused_native_summary_can_hide_details(self) -> None:
+        paused_native = {
+            "ok": False,
+            "paused_count": 1,
+            "paused_automations": [{"id": "paused-one"}],
+        }
+
+        summary = paused_native_summary(paused_native, include_details=False)
+
+        self.assertEqual(summary["ok"], False)
+        self.assertEqual(summary["paused_count"], 1)
+        self.assertNotIn("paused_automations", summary)
 
 
 if __name__ == "__main__":
