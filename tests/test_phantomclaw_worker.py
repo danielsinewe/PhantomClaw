@@ -180,15 +180,23 @@ class PhantomClawWorkerTests(unittest.TestCase):
                 None,
             )
         ]
-        cursors = [FakeCursor(rows=active_rows), FakeCursor(rows=dispatch_rows)]
+        stale_rows = [("trustoutreach-linkedin", occurrence_key)]
+        cursors = [FakeCursor(rows=active_rows), FakeCursor(rows=stale_rows), FakeCursor(rows=dispatch_rows)]
 
         with patch("phantomclaw_worker.ensure_worker_schema"):
-            with patch("phantomclaw_worker.connect", side_effect=[FakeConnection(cursors[0]), FakeConnection(cursors[1])]):
+            with patch(
+                "phantomclaw_worker.connect",
+                side_effect=[
+                    FakeConnection(cursors[0]),
+                    FakeConnection(cursors[1]),
+                    FakeConnection(cursors[2]),
+                ],
+            ):
                 due = load_due_automations(
                     "postgresql://example",
                     workspace_slug="daniel-sinewe",
                     now=now,
-                    catchup_minutes=40,
+                    catchup_minutes=3,
                 )
 
         self.assertEqual([item.occurrence_key for item in due], [occurrence_key])
@@ -214,10 +222,17 @@ class PhantomClawWorkerTests(unittest.TestCase):
             )
         ]
         dispatch_rows = [(occurrence_key, "claimed", now - timedelta(minutes=2), None)]
-        cursors = [FakeCursor(rows=active_rows), FakeCursor(rows=dispatch_rows)]
+        cursors = [FakeCursor(rows=active_rows), FakeCursor(rows=[]), FakeCursor(rows=dispatch_rows)]
 
         with patch("phantomclaw_worker.ensure_worker_schema"):
-            with patch("phantomclaw_worker.connect", side_effect=[FakeConnection(cursors[0]), FakeConnection(cursors[1])]):
+            with patch(
+                "phantomclaw_worker.connect",
+                side_effect=[
+                    FakeConnection(cursors[0]),
+                    FakeConnection(cursors[1]),
+                    FakeConnection(cursors[2]),
+                ],
+            ):
                 due = load_due_automations(
                     "postgresql://example",
                     workspace_slug="daniel-sinewe",

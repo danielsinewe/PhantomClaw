@@ -356,6 +356,7 @@ def load_due_automations(
     resolved_catchup_minutes = default_due_catchup_minutes() if catchup_minutes is None else max(0, int(catchup_minutes))
     candidates: list[tuple[Any, str]] = []
     due: list[DueAutomation] = []
+    active_rows_by_id = {str(row[1]): row for row in rows}
     for row in rows:
         tz = ZoneInfo(row[3] or "Europe/Berlin")
         local_now = now.astimezone(tz)
@@ -367,11 +368,37 @@ def load_due_automations(
         ):
             candidates.append((row, occurrence))
 
+    stale_claimed_before = now.astimezone(UTC) - timedelta(minutes=STALE_CLAIMED_MINUTES)
+    with connect(database_url) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT automation_id, occurrence_key
+                FROM phantomclaw_dispatches
+                WHERE workspace_slug = %s
+                  AND status = 'claimed'
+                  AND finished_at IS NULL
+                  AND claimed_at < %s
+                ORDER BY claimed_at ASC
+                LIMIT 50
+                """,
+                (workspace_slug, stale_claimed_before),
+            )
+            stale_claimed_rows = cur.fetchall()
+
+    seen_candidate_occurrences = {occurrence for _, occurrence in candidates}
+    for automation_id, occurrence in stale_claimed_rows:
+        row = active_rows_by_id.get(str(automation_id))
+        occurrence_key = str(occurrence)
+        if row is None or occurrence_key in seen_candidate_occurrences:
+            continue
+        candidates.append((row, occurrence_key))
+        seen_candidate_occurrences.add(occurrence_key)
+
     if not candidates:
         return due
 
     occurrence_keys = [occurrence for _, occurrence in candidates]
-    stale_claimed_before = now.astimezone(UTC) - timedelta(minutes=STALE_CLAIMED_MINUTES)
     with connect(database_url) as conn:
         with conn.cursor() as cur:
             cur.execute(
