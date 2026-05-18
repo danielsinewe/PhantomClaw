@@ -77,3 +77,43 @@ railway run uv run python scripts/phantomclaw_completion_audit.py
 ```
 
 The objective is complete only when this audit returns `status: complete`.
+
+## Current evidence, 2026-05-18
+
+The production completion audit still returns:
+
+```json
+{
+  "status": "blocked_sales_community_auth",
+  "ok": false
+}
+```
+
+The guarded activation check still stops safely before enabling the automation:
+
+```json
+{
+  "ready": false,
+  "reason": "auth_required",
+  "check": {
+    "status": "stopped",
+    "stop_reason": "auth_required",
+    "page_shape_ok": true,
+    "items_scanned": 0,
+    "items_considered": 0
+  }
+}
+```
+
+The following Chrome profiles were checked against
+`https://scommunity.linkedin.com/` and all still showed unauthenticated or
+locked community state:
+
+- `danielsinewe.com`
+- `Daniel`
+- `bee2b.io`
+- `salesprompter.ai`
+- `daniel.dirks@bee2b.io`
+
+The `danielsinewe.com` profile currently reaches the LinkedIn sign-in screen
+with `hello@danielsinewe.com` prefilled and the password field visible.
