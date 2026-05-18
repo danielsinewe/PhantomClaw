@@ -47,6 +47,27 @@ def checklist_status(checks: dict[str, dict[str, Any]]) -> str:
     return "failing"
 
 
+def next_action_for_status(status: str) -> dict[str, Any]:
+    if status == "complete":
+        return {
+            "type": "none",
+            "summary": "All automation completion checks passed.",
+        }
+    if status == "blocked_sales_community_auth":
+        return {
+            "type": "external_auth",
+            "summary": "Restore authenticated access to LinkedIn Sales Community, then run the guarded activation.",
+            "blocked_automation_id": "linkedin-sales-community",
+            "doc": "docs/sales-community-auth-unblock.md",
+            "verify_profile_command": 'browser-use --profile "danielsinewe.com" open https://scommunity.linkedin.com/',
+            "activation_command": "railway run uv run python scripts/sales_community_auth_activation.py --activate",
+        }
+    return {
+        "type": "investigate_failed_check",
+        "summary": "Inspect checks with ok=false and fix the first failing production-health requirement.",
+    }
+
+
 def build_completion_audit(
     *,
     registry: dict[str, Any],
@@ -88,6 +109,7 @@ def build_completion_audit(
         "ok": status == "complete",
         "status": status,
         "objective": "make sure all the automations are working perfectly",
+        "next_action": next_action_for_status(status),
         "checks": checks,
     }
 

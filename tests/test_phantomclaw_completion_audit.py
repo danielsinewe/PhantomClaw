@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from scripts.phantomclaw_completion_audit import build_completion_audit, checklist_status
+from scripts.phantomclaw_completion_audit import build_completion_audit, checklist_status, next_action_for_status
 
 
 class PhantomClawCompletionAuditTests(unittest.TestCase):
@@ -32,6 +32,14 @@ class PhantomClawCompletionAuditTests(unittest.TestCase):
             ),
             "complete",
         )
+
+    def test_next_action_for_sales_community_auth_blocker_is_operational(self) -> None:
+        next_action = next_action_for_status("blocked_sales_community_auth")
+
+        self.assertEqual(next_action["type"], "external_auth")
+        self.assertEqual(next_action["blocked_automation_id"], "linkedin-sales-community")
+        self.assertIn("sales_community_auth_activation.py --activate", next_action["activation_command"])
+        self.assertEqual(next_action["doc"], "docs/sales-community-auth-unblock.md")
 
     def test_build_completion_audit_maps_registry_to_evidence_checklist(self) -> None:
         registry = {
@@ -94,6 +102,7 @@ class PhantomClawCompletionAuditTests(unittest.TestCase):
 
         self.assertFalse(audit["ok"])
         self.assertEqual(audit["status"], "blocked_sales_community_auth")
+        self.assertEqual(audit["next_action"]["type"], "external_auth")
         self.assertEqual(audit["checks"]["registry_active_runners"]["active"], 1)
         self.assertEqual(audit["checks"]["no_paused_native_automations"]["paused_count"], 1)
 
